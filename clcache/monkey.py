@@ -15,9 +15,9 @@ def patch_distutils() -> None:
         from numpy.distutils import ccompiler as _
 
     from distutils import ccompiler
-    from clcache import __main__
+    from clcache import clcache
 
-    clcache_main = [sys.executable, __main__.__file__]
+    clcache_main = [sys.executable, clcache.__file__]
     ccompiler_spawn = ccompiler.CCompiler.spawn
     def msvc_compiler_spawn(self: ccompiler.CCompiler, cmd: List[str]) -> None:
         if not hasattr(self, 'cc'):  # type: ignore
@@ -34,7 +34,7 @@ def patch_distutils() -> None:
         # Set the environment variables so that clcache can run
         os.environ['CLCACHE_CL'] = self.cc  # type: ignore
         print('Note: patching distutils because $env:USE_CLCACHE is set')
-        
+
         return ccompiler_spawn(self, cmd)
 
     ccompiler.CCompiler.spawn = msvc_compiler_spawn  # type: ignore

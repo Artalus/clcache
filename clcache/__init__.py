@@ -1,1 +1,1 @@
-from .__main__ import VERSION
+from .clcache import VERSION

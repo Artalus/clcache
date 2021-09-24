@@ -129,7 +129,7 @@ def mainWrapper():
 import clcache
 returnCode = clcache.__main__.main()
 if returnCode != 0:
-    raise clcache.__main__.ProfilerError(returnCode)
+    raise clcache.clcache.ProfilerError(returnCode)
 '''
         try:
             cProfile.run(CALL_SCRIPT, filename='clcache-{}.prof'.format(INVOCATION_HASH))
