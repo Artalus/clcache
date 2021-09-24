@@ -24,16 +24,16 @@ import pickle
 import re
 import subprocess
 import sys
-import threading
 from tempfile import TemporaryFile
 from typing import Any, List, Tuple, Iterator, Dict
 from atomicwrites import atomic_write
 
+from .errors import *
+from .print import *
+
 VERSION = "4.2.0-dev"
 
 HashAlgorithm = hashlib.md5
-
-OUTPUT_LOCK = threading.Lock()
 
 # try to use os.scandir or scandir.scandir
 # fall back to os.listdir if not found
@@ -78,11 +78,6 @@ ERROR_PIPE_BUSY = 231
 ManifestEntry = namedtuple('ManifestEntry', ['includeFiles', 'includesContentHash', 'objectHash'])
 
 CompilerArtifacts = namedtuple('CompilerArtifacts', ['objectFilePath', 'stdout', 'stderr'])
-
-def printBinary(stream, rawData):
-    with OUTPUT_LOCK:
-        stream.buffer.write(rawData)
-        stream.flush()
 
 
 def basenameWithoutExtension(path):
@@ -129,34 +124,6 @@ def getCachedCompilerConsoleOutput(path):
 def setCachedCompilerConsoleOutput(path, output):
     with open(path, 'wb') as f:
         f.write(output.encode(CACHE_COMPILER_OUTPUT_STORAGE_CODEC))
-
-class IncludeNotFoundException(Exception):
-    pass
-
-
-class CacheLockException(Exception):
-    pass
-
-
-class CompilerFailedException(Exception):
-    def __init__(self, exitCode, msgErr, msgOut=""):
-        super(CompilerFailedException, self).__init__(msgErr)
-        self.exitCode = exitCode
-        self.msgOut = msgOut
-        self.msgErr = msgErr
-
-    def getReturnTuple(self):
-        return self.exitCode, self.msgErr, self.msgOut, False
-
-
-class LogicException(Exception):
-    def __init__(self, message):
-        super(LogicException, self).__init__(message)
-        self.message = message
-
-    def __str__(self):
-        return repr(self.message)
-
 
 class Manifest:
     def __init__(self, entries=None):
@@ -852,37 +819,6 @@ class Statistics:
             self._stats[k] = 0
 
 
-class AnalysisError(Exception):
-    pass
-
-
-class NoSourceFileError(AnalysisError):
-    pass
-
-
-class MultipleSourceFilesComplexError(AnalysisError):
-    pass
-
-
-class CalledForLinkError(AnalysisError):
-    pass
-
-
-class CalledWithPchError(AnalysisError):
-    pass
-
-
-class ExternalDebugInfoError(AnalysisError):
-    pass
-
-
-class CalledForPreprocessingError(AnalysisError):
-    pass
-
-
-class InvalidArgumentError(AnalysisError):
-    pass
-
 
 def getCompilerHash(compilerBinary):
     stat = os.stat(compilerBinary)
@@ -1034,13 +970,6 @@ def findCompilerBinary():
             if path.upper() != myExecutablePath():
                 return path
     return None
-
-
-def printTraceStatement(msg: str) -> None:
-    if "CLCACHE_LOG" in os.environ:
-        scriptDir = os.path.realpath(os.path.dirname(sys.argv[0]))
-        with OUTPUT_LOCK:
-            print(os.path.join(scriptDir, "clcache.py") + " " + msg)
 
 
 class CommandLineTokenizer:
@@ -1642,10 +1571,6 @@ def printOutAndErr(out, err):
     printBinary(sys.stdout, out.encode(CL_DEFAULT_CODEC))
     printBinary(sys.stderr, err.encode(CL_DEFAULT_CODEC))
 
-def printErrStr(message):
-    with OUTPUT_LOCK:
-        print(message, file=sys.stderr)
-
 def processCompileRequest(cache, compiler, args):
     printTraceStatement("Parsing given commandline '{0!s}'".format(args))
 
@@ -1834,9 +1759,6 @@ def ensureArtifactsExist(cache, cachekey, reason, objectFile, compilerResult, ex
                 extraCallable()
     return returnCode, compilerOutput, compilerStderr, cleanupRequired
 
-class ProfilerError(Exception):
-    def __init__(self, returnCode):
-        self.returnCode = returnCode
 
 def mainWrapper():
     if 'CLCACHE_PROFILE' in os.environ:
