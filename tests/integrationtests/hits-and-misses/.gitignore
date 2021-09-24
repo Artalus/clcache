@@ -1,4 +1,5 @@
-*.obj
-
 # written by the tests
 stable-source-with-alternating-header.h
+A.h
+B.h
+alternating-header.h
