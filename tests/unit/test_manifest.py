@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 import unittest
 import tempfile
@@ -7,9 +8,20 @@ from clcache.manifest import (
     ManifestEntry,
 )
 from clcache.clcache import (
-    filesBeneath,
     createManifestEntry,
 )
+
+
+# TODO: should be shared between unit tests
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+@contextmanager
+def cd(targetDirectory):
+    oldDirectory = os.getcwd()
+    os.chdir(os.path.expanduser(targetDirectory))
+    try:
+        yield
+    finally:
+        os.chdir(oldDirectory)
 
 
 class TestManifest(unittest.TestCase):
@@ -83,3 +95,28 @@ class TestCreateManifestEntry(unittest.TestCase):
         includePathsWithDuplicates = TestCreateManifestEntry.includePaths + TestCreateManifestEntry.includePaths
         entry = createManifestEntry(TestCreateManifestEntry.manifestHash, includePathsWithDuplicates)
         self.assertManifestEntryIsCorrect(entry)
+
+
+class TestFilesBeneath(unittest.TestCase):
+    def testFilesBeneathSimple(self):
+        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
+            files = list(filesBeneath("a"))
+            self.assertEqual(len(files), 2)
+            self.assertIn(r"a\1.txt", files)
+            self.assertIn(r"a\2.txt", files)
+
+    def testFilesBeneathDeep(self):
+        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
+            files = list(filesBeneath("b"))
+            self.assertEqual(len(files), 1)
+            self.assertIn(r"b\c\3.txt", files)
+
+    def testFilesBeneathRecursive(self):
+        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
+            files = list(filesBeneath("."))
+            self.assertEqual(len(files), 5)
+            self.assertIn(r".\a\1.txt", files)
+            self.assertIn(r".\a\2.txt", files)
+            self.assertIn(r".\b\c\3.txt", files)
+            self.assertIn(r".\d\4.txt", files)
+            self.assertIn(r".\d\e\5.txt", files)

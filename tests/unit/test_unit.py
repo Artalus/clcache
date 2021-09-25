@@ -65,29 +65,6 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertEqual(clcache.normalizeBaseDir("c:\\projects with space"), "c:\\projects with space")
         self.assertEqual(clcache.normalizeBaseDir("c:\\projects with ö"), "c:\\projects with ö")
 
-    def testFilesBeneathSimple(self):
-        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
-            files = list(clcache.filesBeneath("a"))
-            self.assertEqual(len(files), 2)
-            self.assertIn(r"a\1.txt", files)
-            self.assertIn(r"a\2.txt", files)
-
-    def testFilesBeneathDeep(self):
-        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
-            files = list(clcache.filesBeneath("b"))
-            self.assertEqual(len(files), 1)
-            self.assertIn(r"b\c\3.txt", files)
-
-    def testFilesBeneathRecursive(self):
-        with cd(os.path.join(ASSETS_DIR, "files-beneath")):
-            files = list(clcache.filesBeneath("."))
-            self.assertEqual(len(files), 5)
-            self.assertIn(r".\a\1.txt", files)
-            self.assertIn(r".\a\2.txt", files)
-            self.assertIn(r".\b\c\3.txt", files)
-            self.assertIn(r".\d\4.txt", files)
-            self.assertIn(r".\d\e\5.txt", files)
-
 
 class TestExtendCommandLineFromEnvironment(unittest.TestCase):
     def testEmpty(self):
