@@ -12,13 +12,10 @@ from shutil import copyfile, copyfileobj, rmtree, which
 import codecs
 import concurrent.futures
 import contextlib
-import errno
 import gzip
-import hashlib
 import json
 import multiprocessing
 import os
-import pickle
 import re
 import subprocess
 import sys
@@ -41,6 +38,7 @@ from .stats import (
 )
 from .utils import *
 from .hash import *
+from .manifest import *
 
 # The codec that is used by clcache to store compiler STDOUR and STDERR in
 # output.txt and stderr.txt.
@@ -51,6 +49,7 @@ CACHE_COMPILER_OUTPUT_STORAGE_CODEC = 'utf-8'
 # The cl default codec
 CL_DEFAULT_CODEC = 'mbcs'
 
+# TODO: not used
 # Manifest file will have at most this number of hash lists in it. Need to avoi
 # manifests grow too large.
 MAX_MANIFEST_HASHES = 100
@@ -59,16 +58,6 @@ MAX_MANIFEST_HASHES = 100
 # ? is invalid character for file name, so it seems ok
 # to use it as mark for relative path.
 BASEDIR_REPLACEMENT = '?'
-
-# Define some Win32 API constants here to avoid dependency on win32pipe
-NMPWAIT_WAIT_FOREVER = wintypes.DWORD(0xFFFFFFFF)
-ERROR_PIPE_BUSY = 231
-
-# ManifestEntry: an entry in a manifest file
-# `includeFiles`: list of paths to include files, which this source file uses
-# `includesContentsHash`: hash of the contents of the includeFiles
-# `objectHash`: hash of the object in cache
-ManifestEntry = namedtuple('ManifestEntry', ['includeFiles', 'includesContentHash', 'objectHash'])
 
 CompilerArtifacts = namedtuple('CompilerArtifacts', ['objectFilePath', 'stdout', 'stderr'])
 
