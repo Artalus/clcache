@@ -8,12 +8,10 @@
 #
 from collections import namedtuple
 from ctypes import windll, wintypes
-from shutil import copyfile, copyfileobj, rmtree, which
+from shutil import rmtree, which
 import codecs
 import concurrent.futures
 import contextlib
-import gzip
-import json
 import multiprocessing
 import os
 import re
@@ -464,43 +462,6 @@ def expandBasedirPlaceholder(path):
         return path.replace(BASEDIR_REPLACEMENT, baseDir, 1)
     else:
         return path
-
-
-def copyOrLink(srcFilePath, dstFilePath, writeCache=False):
-    ensureDirectoryExists(os.path.dirname(os.path.abspath(dstFilePath)))
-
-    if "CLCACHE_HARDLINK" in os.environ:
-        ret = windll.kernel32.CreateHardLinkW(str(dstFilePath), str(srcFilePath), None)
-        if ret != 0:
-            # Touch the time stamp of the new link so that the build system
-            # doesn't confused by a potentially old time on the file. The
-            # hard link gets the same timestamp as the cached file.
-            # Note that touching the time stamp of the link also touches
-            # the time stamp on the cache (and hence on all over hard
-            # links). This shouldn't be a problem though.
-            os.utime(dstFilePath, None)
-            return
-
-    # If hardlinking fails for some reason (or it's not enabled), just
-    # fall back to moving bytes around. Always to a temporary path first to
-    # lower the chances of corrupting it.
-    tempDst = dstFilePath + '.tmp'
-
-    if "CLCACHE_COMPRESS" in os.environ:
-        if "CLCACHE_COMPRESSLEVEL" in os.environ:
-            compress = int(os.environ["CLCACHE_COMPRESSLEVEL"])
-        else:
-            compress = 6
-
-        if writeCache is True:
-            with open(srcFilePath, 'rb') as fileIn, gzip.open(tempDst, 'wb', compress) as fileOut:
-                copyfileobj(fileIn, fileOut)
-        else:
-            with gzip.open(srcFilePath, 'rb', compress) as fileIn, open(tempDst, 'wb') as fileOut:
-                copyfileobj(fileIn, fileOut)
-    else:
-        copyfile(srcFilePath, tempDst)
-    os.replace(tempDst, dstFilePath)
 
 
 def myExecutablePath():
