@@ -1,0 +1,188 @@
+from collections import defaultdict
+import os
+from typing import Tuple, List
+
+from .errors import (
+    NoSourceFileError,
+    CalledForLinkError,
+    CalledForPreprocessingError,
+    CalledWithPchError,
+    ExternalDebugInfoError,
+    InvalidArgumentError,
+    MultipleSourceFilesComplexError,
+)
+from .print import printTraceStatement
+
+
+def basenameWithoutExtension(path):
+    basename = os.path.basename(path)
+    return os.path.splitext(basename)[0]
+
+
+class Argument:
+    def __init__(self, name):
+        self.name = name
+
+    def __len__(self):
+        return len(self.name)
+
+    def __str__(self):
+        return "/" + self.name
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.name == other.name
+
+    def __hash__(self):
+        key = (type(self), self.name)
+        return hash(key)
+
+
+# /NAMEparameter (no space, required parameter).
+class ArgumentT1(Argument):
+    pass
+
+
+# /NAME[parameter] (no space, optional parameter)
+class ArgumentT2(Argument):
+    pass
+
+
+# /NAME[ ]parameter (optional space)
+class ArgumentT3(Argument):
+    pass
+
+
+# /NAME parameter (required space)
+class ArgumentT4(Argument):
+    pass
+
+
+class CommandLineAnalyzer:
+    argumentsWithParameter = {
+        # /NAMEparameter
+        ArgumentT1('Ob'), ArgumentT1('Yl'), ArgumentT1('Zm'),
+        # /NAME[parameter]
+        ArgumentT2('doc'), ArgumentT2('FA'), ArgumentT2('FR'), ArgumentT2('Fr'),
+        ArgumentT2('Gs'), ArgumentT2('MP'), ArgumentT2('Yc'), ArgumentT2('Yu'),
+        ArgumentT2('Zp'), ArgumentT2('Fa'), ArgumentT2('Fd'), ArgumentT2('Fe'),
+        ArgumentT2('Fi'), ArgumentT2('Fm'), ArgumentT2('Fo'), ArgumentT2('Fp'),
+        ArgumentT2('Wv'),
+        # /NAME[ ]parameter
+        ArgumentT3('AI'), ArgumentT3('D'), ArgumentT3('Tc'), ArgumentT3('Tp'),
+        ArgumentT3('FI'), ArgumentT3('U'), ArgumentT3('I'), ArgumentT3('F'),
+        ArgumentT3('FU'), ArgumentT3('w1'), ArgumentT3('w2'), ArgumentT3('w3'),
+        ArgumentT3('w4'), ArgumentT3('wd'), ArgumentT3('we'), ArgumentT3('wo'),
+        ArgumentT3('V'),
+        ArgumentT3('imsvc'),
+        # /NAME parameter
+        ArgumentT4("Xclang"),
+    }
+    argumentsWithParameterSorted = sorted(argumentsWithParameter, key=len, reverse=True)
+
+    @staticmethod
+    def _getParameterizedArgumentType(cmdLineArgument):
+        # Sort by length to handle prefixes
+        for arg in CommandLineAnalyzer.argumentsWithParameterSorted:
+            if cmdLineArgument.startswith(arg.name, 1):
+                return arg
+        return None
+
+    @staticmethod
+    def parseArgumentsAndInputFiles(cmdline):
+        arguments = defaultdict(list)
+        inputFiles = []
+        i = 0
+        while i < len(cmdline):
+            cmdLineArgument = cmdline[i]
+
+            # Plain arguments starting with / or -
+            if cmdLineArgument.startswith('/') or cmdLineArgument.startswith('-'):
+                arg = CommandLineAnalyzer._getParameterizedArgumentType(cmdLineArgument)
+                if arg is not None:
+                    if isinstance(arg, ArgumentT1):
+                        value = cmdLineArgument[len(arg) + 1:]
+                        if not value:
+                            raise InvalidArgumentError("Parameter for {} must not be empty".format(arg))
+                    elif isinstance(arg, ArgumentT2):
+                        value = cmdLineArgument[len(arg) + 1:]
+                    elif isinstance(arg, ArgumentT3):
+                        value = cmdLineArgument[len(arg) + 1:]
+                        if not value:
+                            value = cmdline[i + 1]
+                            i += 1
+                    elif isinstance(arg, ArgumentT4):
+                        value = cmdline[i + 1]
+                        i += 1
+                    else:
+                        raise AssertionError("Unsupported argument type.")
+
+                    arguments[arg.name].append(value)
+                else:
+                    argumentName = cmdLineArgument[1:] # name not followed by parameter in this case
+                    arguments[argumentName].append('')
+
+            # Response file
+            elif cmdLineArgument[0] == '@':
+                raise AssertionError("No response file arguments (starting with @) must be left here.")
+
+            # Source file arguments
+            else:
+                inputFiles.append(cmdLineArgument)
+
+            i += 1
+
+        return dict(arguments), inputFiles
+
+    @staticmethod
+    def analyze(cmdline: List[str]) -> Tuple[List[Tuple[str, str]], List[str]]:
+        options, inputFiles = CommandLineAnalyzer.parseArgumentsAndInputFiles(cmdline)
+        # Use an override pattern to shadow input files that have
+        # already been specified in the function above
+        inputFiles = {inputFile: '' for inputFile in inputFiles}
+        compl = False
+        if 'Tp' in options:
+            inputFiles.update({inputFile: '/Tp' for inputFile in options['Tp']})
+            compl = True
+        if 'Tc' in options:
+            inputFiles.update({inputFile: '/Tc' for inputFile in options['Tc']})
+            compl = True
+
+        # Now collect the inputFiles into the return format
+        inputFiles = list(inputFiles.items())
+        if not inputFiles:
+            raise NoSourceFileError()
+
+        for opt in ['E', 'EP', 'P']:
+            if opt in options:
+                raise CalledForPreprocessingError()
+
+        # Technically, it would be possible to support /Zi: we'd just need to
+        # copy the generated .pdb files into/out of the cache.
+        if 'Zi' in options:
+            raise ExternalDebugInfoError()
+
+        if 'Yc' in options or 'Yu' in options:
+            raise CalledWithPchError()
+
+        if 'link' in options or 'c' not in options:
+            raise CalledForLinkError()
+
+        if len(inputFiles) > 1 and compl:
+            raise MultipleSourceFilesComplexError()
+
+        objectFiles = None
+        prefix = ''
+        if 'Fo' in options and options['Fo'][0]:
+            # Handle user input
+            tmp = os.path.normpath(options['Fo'][0])
+            if os.path.isdir(tmp):
+                prefix = tmp
+            elif len(inputFiles) == 1:
+                objectFiles = [tmp]
+        if objectFiles is None:
+            # Generate from .c/.cpp filenames
+            objectFiles = [os.path.join(prefix, basenameWithoutExtension(f)) + '.obj' for f, _ in inputFiles]
+
+        printTraceStatement("Compiler source files: {}".format(inputFiles))
+        printTraceStatement("Compiler object file: {}".format(objectFiles))
+        return inputFiles, objectFiles
