@@ -6,6 +6,7 @@ import tempfile
 from clcache.manifest import (
     Manifest,
     ManifestEntry,
+    filesBeneath,
 )
 from clcache.clcache import (
     createManifestEntry,

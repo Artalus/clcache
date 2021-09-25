@@ -23,3 +23,14 @@ def childDirectories(path, absolute=True):
             absPath = os.path.join(path, entry)
             if os.path.isdir(absPath):
                 yield absPath if absolute else entry
+
+
+def normalizeBaseDir(baseDir):
+    if baseDir:
+        baseDir = os.path.normcase(baseDir)
+        if baseDir.endswith(os.path.sep):
+            baseDir = baseDir[0:-1]
+        return baseDir
+    else:
+        # Converts empty string to None
+        return None

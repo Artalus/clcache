@@ -48,24 +48,6 @@ def temporaryFileName():
         return f.name
 
 
-class TestHelperFunctions(unittest.TestCase):
-    def testNormalizeBaseDir(self):
-        self.assertIsNone(clcache.normalizeBaseDir(None))
-        self.assertIsNone(clcache.normalizeBaseDir(r""))
-
-        # Note: raw string literals cannot end in an odd number of backslashes
-        # https://docs.python.org/3/faq/design.html#why-can-t-raw-strings-r-strings-end-with-a-backslash
-        # So we consistenly use basic literals
-        self.assertEqual(clcache.normalizeBaseDir("c:"), "c:")
-        self.assertEqual(clcache.normalizeBaseDir("c:\\projects"), "c:\\projects")
-
-        self.assertEqual(clcache.normalizeBaseDir("C:\\"), "c:")
-        self.assertEqual(clcache.normalizeBaseDir("C:\\Projects\\"), "c:\\projects")
-
-        self.assertEqual(clcache.normalizeBaseDir("c:\\projects with space"), "c:\\projects with space")
-        self.assertEqual(clcache.normalizeBaseDir("c:\\projects with ö"), "c:\\projects with ö")
-
-
 class TestExtendCommandLineFromEnvironment(unittest.TestCase):
     def testEmpty(self):
         cmdLine, env = clcache.extendCommandLineFromEnvironment([], {})

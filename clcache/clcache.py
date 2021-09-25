@@ -63,17 +63,6 @@ CompilerArtifacts = namedtuple('CompilerArtifacts', ['objectFilePath', 'stdout',
 
 
 
-def normalizeBaseDir(baseDir):
-    if baseDir:
-        baseDir = os.path.normcase(baseDir)
-        if baseDir.endswith(os.path.sep):
-            baseDir = baseDir[0:-1]
-        return baseDir
-    else:
-        # Converts empty string to None
-        return None
-
-
 def getCachedCompilerConsoleOutput(path):
     try:
         with open(path, 'rb') as f:
