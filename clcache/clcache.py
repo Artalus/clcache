@@ -26,6 +26,11 @@ from tempfile import TemporaryFile
 from typing import Any, List, Tuple, Iterator, Dict
 from atomicwrites import atomic_write
 
+from . import (
+    LIST,
+    WALK,
+    VERSION,
+)
 from .errors import *
 from .print import *
 from .cmdline import CommandLineAnalyzer
@@ -35,23 +40,9 @@ from .stats import (
     PersistentJSONDict,
 )
 
-VERSION = "4.2.0-dev"
 
 HashAlgorithm = hashlib.md5
 
-# try to use os.scandir or scandir.scandir
-# fall back to os.listdir if not found
-# same for scandir.walk
-try:
-    import scandir # pylint: disable=wrong-import-position
-    WALK = scandir.walk
-    LIST = scandir.scandir
-except ImportError:
-    WALK = os.walk
-    try:
-        LIST = os.scandir # type: ignore # pylint: disable=no-name-in-module
-    except AttributeError:
-        LIST = os.listdir
 
 # The codec that is used by clcache to store compiler STDOUR and STDERR in
 # output.txt and stderr.txt.

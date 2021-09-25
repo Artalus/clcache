@@ -16,6 +16,7 @@ import unittest
 import tempfile
 import shutil
 
+from clcache import WALK
 from clcache import clcache
 
 from clcache.clcache import (
@@ -158,7 +159,7 @@ class TestManifestRepository(unittest.TestCase):
             return os.stat(os.path.join(path, filename)).st_size
 
         size = 0
-        for path, _, filenames in clcache.WALK(dirPath):
+        for path, _, filenames in WALK(dirPath):
             size += sum(filesize(path, f) for f in filenames)
 
         return size
