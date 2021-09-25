@@ -13,6 +13,7 @@ from .print import (
 )
 from .utils import (
     ensureDirectoryExists,
+    normalizeBaseDir,
 )
 
 # ManifestEntry: an entry in a manifest file
@@ -20,6 +21,17 @@ from .utils import (
 # `includesContentsHash`: hash of the contents of the includeFiles
 # `objectHash`: hash of the object in cache
 ManifestEntry = namedtuple('ManifestEntry', ['includeFiles', 'includesContentHash', 'objectHash'])
+
+
+# TODO: not used
+# Manifest file will have at most this number of hash lists in it. Need to avoi
+# manifests grow too large.
+MAX_MANIFEST_HASHES = 100
+
+# String, by which BASE_DIR will be replaced in paths, stored in manifests.
+# ? is invalid character for file name, so it seems ok
+# to use it as mark for relative path.
+BASEDIR_REPLACEMENT = '?'
 
 
 class Manifest:
@@ -89,3 +101,14 @@ def filesBeneath(baseDir):
             yield os.path.join(path, filename)
 
 
+def collapseBasedirToPlaceholder(path):
+    baseDir = normalizeBaseDir(os.environ.get('CLCACHE_BASEDIR'))
+    if baseDir is None:
+        return path
+    else:
+        assert path == os.path.normcase(path)
+        assert baseDir == os.path.normcase(baseDir)
+        if path.startswith(baseDir):
+            return path.replace(baseDir, BASEDIR_REPLACEMENT, 1)
+        else:
+            return path

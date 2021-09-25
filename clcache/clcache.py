@@ -23,11 +23,6 @@ from tempfile import TemporaryFile
 from typing import Any, List, Tuple, Iterator, Dict
 from atomicwrites import atomic_write
 
-from . import (
-    LIST,
-    WALK,
-    VERSION,
-)
 from .errors import *
 from .print import *
 from .cmdline import CommandLineAnalyzer
@@ -48,16 +43,6 @@ CACHE_COMPILER_OUTPUT_STORAGE_CODEC = 'utf-8'
 
 # The cl default codec
 CL_DEFAULT_CODEC = 'mbcs'
-
-# TODO: not used
-# Manifest file will have at most this number of hash lists in it. Need to avoi
-# manifests grow too large.
-MAX_MANIFEST_HASHES = 100
-
-# String, by which BASE_DIR will be replaced in paths, stored in manifests.
-# ? is invalid character for file name, so it seems ok
-# to use it as mark for relative path.
-BASEDIR_REPLACEMENT = '?'
 
 CompilerArtifacts = namedtuple('CompilerArtifacts', ['objectFilePath', 'stdout', 'stderr'])
 
@@ -479,21 +464,6 @@ def expandBasedirPlaceholder(path):
         return path.replace(BASEDIR_REPLACEMENT, baseDir, 1)
     else:
         return path
-
-
-def collapseBasedirToPlaceholder(path):
-    baseDir = normalizeBaseDir(os.environ.get('CLCACHE_BASEDIR'))
-    if baseDir is None:
-        return path
-    else:
-        assert path == os.path.normcase(path)
-        assert baseDir == os.path.normcase(baseDir)
-        if path.startswith(baseDir):
-            return path.replace(baseDir, BASEDIR_REPLACEMENT, 1)
-        else:
-            return path
-
-
 
 
 def copyOrLink(srcFilePath, dstFilePath, writeCache=False):
