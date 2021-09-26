@@ -16,11 +16,9 @@ from typing import Any, List, Tuple, Iterator, Dict
 from .errors import *
 from .print import *
 from .cmdline import *
+from .cfg import Configuration
 from .lock import CacheLock
-from .stats import (
-    Statistics,
-    PersistentJSONDict,
-)
+from .stats import Statistics
 from .utils import *
 from .hash import *
 from .manifest import *
@@ -179,31 +177,6 @@ class Cache:
 
     def getManifest(self, manifestHash):
         return self.strategy.getManifest(manifestHash)
-
-
-class Configuration:
-    _defaultValues = {"MaximumCacheSize": 1073741824} # 1 GiB
-
-    def __init__(self, configurationFile):
-        self._configurationFile = configurationFile
-        self._cfg = None
-
-    def __enter__(self):
-        self._cfg = PersistentJSONDict(self._configurationFile)
-        for setting, defaultValue in self._defaultValues.items():
-            if setting not in self._cfg:
-                self._cfg[setting] = defaultValue
-        return self
-
-    def __exit__(self, typ, value, traceback):
-        # Does not write to disc when unchanged
-        self._cfg.save()
-
-    def maximumCacheSize(self):
-        return self._cfg["MaximumCacheSize"]
-
-    def setMaximumCacheSize(self, size):
-        self._cfg["MaximumCacheSize"] = size
 
 
 def expandBasedirPlaceholder(path):

@@ -10,21 +10,12 @@
 # pylint: disable=no-self-use
 #
 from contextlib import contextmanager
-import multiprocessing
 import os
 import unittest
 import tempfile
 
-from clcache import WALK
 from clcache import clcache
 
-from clcache.clcache import (
-    CompilerArtifactsRepository,
-    Configuration,
-    Manifest,
-    ManifestEntry,
-    ManifestRepository,
-)
 from clcache.storage import CacheMemcacheStrategy
 
 
@@ -40,21 +31,6 @@ def cd(targetDirectory):
         yield
     finally:
         os.chdir(oldDirectory)
-
-
-def temporaryFileName():
-    with tempfile.NamedTemporaryFile() as f:
-        return f.name
-
-
-class TestConfiguration(unittest.TestCase):
-    def testOpenClose(self):
-        with Configuration(temporaryFileName()):
-            pass
-
-    def testDefaults(self):
-        with Configuration(temporaryFileName()) as cfg:
-            self.assertGreaterEqual(cfg.maximumCacheSize(), 1024) # 1KiB
 
 
 class TestFilterSourceFiles(unittest.TestCase):
