@@ -504,3 +504,46 @@ class TestExpandCommandLine(unittest.TestCase):
             ['-A', '@nested_response_file.rsp', '-B'],
             ['-A', '/O2', '/DSOMETHING=foo', '/DANOTHERTHING=bar', '/nologo', '-B']
         )
+
+
+class TestExtendCommandLineFromEnvironment(unittest.TestCase):
+    def testEmpty(self):
+        cmdLine, env = extendCommandLineFromEnvironment([], {})
+        self.assertEqual(cmdLine, [])
+        self.assertEqual(env, {})
+
+    def testSimple(self):
+        cmdLine, env = extendCommandLineFromEnvironment(['/nologo'], {'USER': 'ab'})
+        self.assertEqual(cmdLine, ['/nologo'])
+        self.assertEqual(env, {'USER': 'ab'})
+
+    def testPrepend(self):
+        cmdLine, env = extendCommandLineFromEnvironment(['/nologo'], {
+            'USER': 'ab',
+            'CL': '/MP',
+        })
+        self.assertEqual(cmdLine, ['/MP', '/nologo'])
+        self.assertEqual(env, {'USER': 'ab'})
+
+    def testPrependMultiple(self):
+        cmdLine, _ = extendCommandLineFromEnvironment(['INPUT.C'], {
+            'CL': r'/Zp2 /Ox /I\INCLUDE\MYINCLS \LIB\BINMODE.OBJ',
+        })
+        self.assertEqual(cmdLine, ['/Zp2', '/Ox', r'/I\INCLUDE\MYINCLS', r'\LIB\BINMODE.OBJ', 'INPUT.C'])
+
+    def testAppend(self):
+        cmdLine, env = extendCommandLineFromEnvironment(['/nologo'], {
+            'USER': 'ab',
+            '_CL_': 'file.c',
+        })
+        self.assertEqual(cmdLine, ['/nologo', 'file.c'])
+        self.assertEqual(env, {'USER': 'ab'})
+
+    def testAppendPrepend(self):
+        cmdLine, env = extendCommandLineFromEnvironment(['/nologo'], {
+            'USER': 'ab',
+            'CL': '/MP',
+            '_CL_': 'file.c',
+        })
+        self.assertEqual(cmdLine, ['/MP', '/nologo', 'file.c'])
+        self.assertEqual(env, {'USER': 'ab'})

@@ -47,49 +47,6 @@ def temporaryFileName():
         return f.name
 
 
-class TestExtendCommandLineFromEnvironment(unittest.TestCase):
-    def testEmpty(self):
-        cmdLine, env = clcache.extendCommandLineFromEnvironment([], {})
-        self.assertEqual(cmdLine, [])
-        self.assertEqual(env, {})
-
-    def testSimple(self):
-        cmdLine, env = clcache.extendCommandLineFromEnvironment(['/nologo'], {'USER': 'ab'})
-        self.assertEqual(cmdLine, ['/nologo'])
-        self.assertEqual(env, {'USER': 'ab'})
-
-    def testPrepend(self):
-        cmdLine, env = clcache.extendCommandLineFromEnvironment(['/nologo'], {
-            'USER': 'ab',
-            'CL': '/MP',
-        })
-        self.assertEqual(cmdLine, ['/MP', '/nologo'])
-        self.assertEqual(env, {'USER': 'ab'})
-
-    def testPrependMultiple(self):
-        cmdLine, _ = clcache.extendCommandLineFromEnvironment(['INPUT.C'], {
-            'CL': r'/Zp2 /Ox /I\INCLUDE\MYINCLS \LIB\BINMODE.OBJ',
-        })
-        self.assertEqual(cmdLine, ['/Zp2', '/Ox', r'/I\INCLUDE\MYINCLS', r'\LIB\BINMODE.OBJ', 'INPUT.C'])
-
-    def testAppend(self):
-        cmdLine, env = clcache.extendCommandLineFromEnvironment(['/nologo'], {
-            'USER': 'ab',
-            '_CL_': 'file.c',
-        })
-        self.assertEqual(cmdLine, ['/nologo', 'file.c'])
-        self.assertEqual(env, {'USER': 'ab'})
-
-    def testAppendPrepend(self):
-        cmdLine, env = clcache.extendCommandLineFromEnvironment(['/nologo'], {
-            'USER': 'ab',
-            'CL': '/MP',
-            '_CL_': 'file.c',
-        })
-        self.assertEqual(cmdLine, ['/MP', '/nologo', 'file.c'])
-        self.assertEqual(env, {'USER': 'ab'})
-
-
 class TestConfiguration(unittest.TestCase):
     def testOpenClose(self):
         with Configuration(temporaryFileName()):

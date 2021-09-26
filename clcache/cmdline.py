@@ -1,3 +1,4 @@
+import codecs
 from collections import defaultdict
 import os
 from typing import Tuple, List
@@ -301,3 +302,17 @@ def expandCommandLine(cmdline):
             ret.append(arg)
 
     return ret
+
+
+def extendCommandLineFromEnvironment(cmdLine, environment):
+    remainingEnvironment = environment.copy()
+
+    prependCmdLineString = remainingEnvironment.pop('CL', None)
+    if prependCmdLineString is not None:
+        cmdLine = splitCommandsFile(prependCmdLineString.strip()) + cmdLine
+
+    appendCmdLineString = remainingEnvironment.pop('_CL_', None)
+    if appendCmdLineString is not None:
+        cmdLine = cmdLine + splitCommandsFile(appendCmdLineString.strip())
+
+    return cmdLine, remainingEnvironment

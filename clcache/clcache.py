@@ -7,7 +7,6 @@
 # root directory of this project.
 #
 from shutil import rmtree, which
-import codecs
 import concurrent.futures
 import contextlib
 import multiprocessing
@@ -220,20 +219,6 @@ def expandBasedirPlaceholder(path):
         return path.replace(BASEDIR_REPLACEMENT, baseDir, 1)
     else:
         return path
-
-
-def extendCommandLineFromEnvironment(cmdLine, environment):
-    remainingEnvironment = environment.copy()
-
-    prependCmdLineString = remainingEnvironment.pop('CL', None)
-    if prependCmdLineString is not None:
-        cmdLine = splitCommandsFile(prependCmdLineString.strip()) + cmdLine
-
-    appendCmdLineString = remainingEnvironment.pop('_CL_', None)
-    if appendCmdLineString is not None:
-        cmdLine = cmdLine + splitCommandsFile(appendCmdLineString.strip())
-
-    return cmdLine, remainingEnvironment
 
 # Returns the amount of jobs which should be run in parallel when
 # invoked in batch mode as determined by the /MP argument
