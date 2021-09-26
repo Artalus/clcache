@@ -547,3 +547,48 @@ class TestExtendCommandLineFromEnvironment(unittest.TestCase):
         })
         self.assertEqual(cmdLine, ['/MP', '/nologo', 'file.c'])
         self.assertEqual(env, {'USER': 'ab'})
+
+
+class TestJobCount(unittest.TestCase):
+    CPU_CORES = multiprocessing.cpu_count()
+
+    # TODO: is this even needed?
+    def testCpuCuresPlausibility(self):
+        # 1 <= CPU_CORES <= 32
+        self.assertGreaterEqual(self.CPU_CORES, 1)
+        self.assertLessEqual(self.CPU_CORES, 32)
+
+    def testJobCount(self):
+        # Basic parsing
+        actual = jobCount(["/MP1"])
+        self.assertEqual(actual, 1)
+        actual = jobCount(["/MP100"])
+        self.assertEqual(actual, 100)
+
+        # Without optional max process value
+        actual = jobCount(["/MP"])
+        self.assertEqual(actual, self.CPU_CORES)
+
+        # Invalid inputs
+        actual = jobCount(["/MP100.0"])
+        self.assertEqual(actual, 1)
+        actual = jobCount(["/MP-100"])
+        self.assertEqual(actual, 1)
+        actual = jobCount(["/MPfoo"])
+        self.assertEqual(actual, 1)
+
+        # Multiple values
+        actual = jobCount(["/MP1", "/MP44"])
+        self.assertEqual(actual, 44)
+        actual = jobCount(["/MP1", "/MP44", "/MP"])
+        self.assertEqual(actual, self.CPU_CORES)
+
+        # Find /MP in mixed command line
+        actual = jobCount(["/c", "/nologo", "/MP44"])
+        self.assertEqual(actual, 44)
+        actual = jobCount(["/c", "/nologo", "/MP44", "mysource.cpp"])
+        self.assertEqual(actual, 44)
+        actual = jobCount(["/MP2", "/c", "/nologo", "/MP44", "mysource.cpp"])
+        self.assertEqual(actual, 44)
+        actual = jobCount(["/MP2", "/c", "/MP44", "/nologo", "/MP", "mysource.cpp"])
+        self.assertEqual(actual, self.CPU_CORES)

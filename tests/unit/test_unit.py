@@ -80,49 +80,6 @@ class TestFilterSourceFiles(unittest.TestCase):
             ['/c', '/EP', '/FoSome.obj', '/Tcmain.cpp'], [('main.cpp', '-Tc')],
             ['/c', '/EP', '/FoSome.obj'])
 
-class TestMultipleSourceFiles(unittest.TestCase):
-    CPU_CORES = multiprocessing.cpu_count()
-
-    def testCpuCuresPlausibility(self):
-        # 1 <= CPU_CORES <= 32
-        self.assertGreaterEqual(self.CPU_CORES, 1)
-        self.assertLessEqual(self.CPU_CORES, 32)
-
-    def testJobCount(self):
-        # Basic parsing
-        actual = clcache.jobCount(["/MP1"])
-        self.assertEqual(actual, 1)
-        actual = clcache.jobCount(["/MP100"])
-        self.assertEqual(actual, 100)
-
-        # Without optional max process value
-        actual = clcache.jobCount(["/MP"])
-        self.assertEqual(actual, self.CPU_CORES)
-
-        # Invalid inputs
-        actual = clcache.jobCount(["/MP100.0"])
-        self.assertEqual(actual, 1)
-        actual = clcache.jobCount(["/MP-100"])
-        self.assertEqual(actual, 1)
-        actual = clcache.jobCount(["/MPfoo"])
-        self.assertEqual(actual, 1)
-
-        # Multiple values
-        actual = clcache.jobCount(["/MP1", "/MP44"])
-        self.assertEqual(actual, 44)
-        actual = clcache.jobCount(["/MP1", "/MP44", "/MP"])
-        self.assertEqual(actual, self.CPU_CORES)
-
-        # Find /MP in mixed command line
-        actual = clcache.jobCount(["/c", "/nologo", "/MP44"])
-        self.assertEqual(actual, 44)
-        actual = clcache.jobCount(["/c", "/nologo", "/MP44", "mysource.cpp"])
-        self.assertEqual(actual, 44)
-        actual = clcache.jobCount(["/MP2", "/c", "/nologo", "/MP44", "mysource.cpp"])
-        self.assertEqual(actual, 44)
-        actual = clcache.jobCount(["/MP2", "/c", "/MP44", "/nologo", "/MP", "mysource.cpp"])
-        self.assertEqual(actual, self.CPU_CORES)
-
 
 class TestParseIncludes(unittest.TestCase):
     def _readSampleFileDefault(self, lang=None):

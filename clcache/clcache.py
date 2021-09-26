@@ -6,14 +6,11 @@
 # full text of which is available in the accompanying LICENSE file at the
 # root directory of this project.
 #
-from shutil import rmtree, which
 import concurrent.futures
 import contextlib
-import multiprocessing
 import os
 import re
 import sys
-from tempfile import TemporaryFile
 from typing import Any, List, Tuple, Iterator, Dict
 
 from .errors import *
@@ -28,8 +25,6 @@ from .utils import *
 from .hash import *
 from .manifest import *
 from .compiler import *
-
-
 
 
 @contextlib.contextmanager
@@ -220,26 +215,6 @@ def expandBasedirPlaceholder(path):
     else:
         return path
 
-# Returns the amount of jobs which should be run in parallel when
-# invoked in batch mode as determined by the /MP argument
-def jobCount(cmdLine):
-    mpSwitches = [arg for arg in cmdLine if re.match(r'^/MP(\d+)?$', arg)]
-    if not mpSwitches:
-        return 1
-
-    # the last instance of /MP takes precedence
-    mpSwitch = mpSwitches.pop()
-
-    count = mpSwitch[3:]
-    if count != "":
-        return int(count)
-
-    # /MP, but no count specified; use CPU count
-    try:
-        return multiprocessing.cpu_count()
-    except NotImplementedError:
-        # not expected to happen
-        return 2
 
 def printStatistics(cache):
     template = """

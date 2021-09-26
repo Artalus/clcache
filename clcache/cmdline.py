@@ -1,6 +1,8 @@
 import codecs
 from collections import defaultdict
+import multiprocessing
 import os
+import re
 from typing import Tuple, List
 
 from .errors import (
@@ -316,3 +318,25 @@ def extendCommandLineFromEnvironment(cmdLine, environment):
         cmdLine = cmdLine + splitCommandsFile(appendCmdLineString.strip())
 
     return cmdLine, remainingEnvironment
+
+
+# Returns the amount of jobs which should be run in parallel when
+# invoked in batch mode as determined by the /MP argument
+def jobCount(cmdLine):
+    mpSwitches = [arg for arg in cmdLine if re.match(r'^/MP(\d+)?$', arg)]
+    if not mpSwitches:
+        return 1
+
+    # the last instance of /MP takes precedence
+    mpSwitch = mpSwitches.pop()
+
+    count = mpSwitch[3:]
+    if count != "":
+        return int(count)
+
+    # /MP, but no count specified; use CPU count
+    try:
+        return multiprocessing.cpu_count()
+    except NotImplementedError:
+        # not expected to happen
+        return 2
