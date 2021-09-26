@@ -403,3 +403,76 @@ class TestBasenameUtility(unittest.TestCase):
         self.assertEqual(basenameWithoutExtension(r"README.asciidoc.tmp"), "README.asciidoc")
         self.assertEqual(basenameWithoutExtension(r"/home/user/README.asciidoc.tmp"), "README.asciidoc")
         self.assertEqual(basenameWithoutExtension(r"C:\Project\README.asciidoc.tmp"), "README.asciidoc")
+
+
+class TestSplitCommandsFile(unittest.TestCase):
+    def _genericTest(self, commandLine, expected):
+        self.assertEqual(splitCommandsFile(commandLine), expected)
+
+    def testEmpty(self):
+        self._genericTest('', [])
+
+    def testSimple(self):
+        self._genericTest('/nologo', ['/nologo'])
+        self._genericTest('/nologo /c', ['/nologo', '/c'])
+        self._genericTest('/nologo /c -I.', ['/nologo', '/c', '-I.'])
+
+    def testWhitespace(self):
+        self._genericTest('-A -B    -C', ['-A', '-B', '-C'])
+        self._genericTest('   -A -B -C', ['-A', '-B', '-C'])
+        self._genericTest('-A -B -C   ', ['-A', '-B', '-C'])
+
+    def testMicrosoftExamples(self):
+        # https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
+        self._genericTest(r'"abc" d e', ['abc', 'd', 'e'])
+        self._genericTest(r'a\\b d"e f"g h', [r'a\\b', 'de fg', 'h'])
+        self._genericTest(r'a\\\"b c d', [r'a\"b', 'c', 'd'])
+        self._genericTest(r'a\\\\"b c" d e', [r'a\\b c', 'd', 'e'])
+
+    def testQuotesAroundArgument(self):
+        self._genericTest(r'/Fo"C:\out dir\main.obj"', [r'/FoC:\out dir\main.obj'])
+        self._genericTest(r'/c /Fo"C:\out dir\main.obj"', ['/c', r'/FoC:\out dir\main.obj'])
+        self._genericTest(r'/Fo"C:\out dir\main.obj" /nologo', [r'/FoC:\out dir\main.obj', '/nologo'])
+        self._genericTest(r'/c /Fo"C:\out dir\main.obj" /nologo', ['/c', r'/FoC:\out dir\main.obj', '/nologo'])
+
+    def testDoubleQuoted(self):
+        self._genericTest(r'"/Fo"something\main.obj""', [r'/Fosomething\main.obj'])
+        self._genericTest(r'/c "/Fo"something\main.obj""', ['/c', r'/Fosomething\main.obj'])
+        self._genericTest(r'"/Fo"something\main.obj"" /nologo', [r'/Fosomething\main.obj', '/nologo'])
+        self._genericTest(r'/c "/Fo"something\main.obj"" /nologo', ['/c', r'/Fosomething\main.obj', '/nologo'])
+
+    def testBackslashBeforeQuote(self):
+        # Pathological cases of escaping the quote incorrectly.
+        self._genericTest(r'/Fo"C:\out dir\"', [r'/FoC:\out dir"'])
+        self._genericTest(r'/c /Fo"C:\out dir\"', ['/c', r'/FoC:\out dir"'])
+        self._genericTest(r'/Fo"C:\out dir\" /nologo', [r'/FoC:\out dir" /nologo'])
+        self._genericTest(r'/c /Fo"C:\out dir\" /nologo', ['/c', r'/FoC:\out dir" /nologo'])
+
+        # Sane cases of escaping the backslash correctly.
+        self._genericTest(r'/Fo"C:\out dir\\"', [r'/FoC:\out dir' + '\\'])
+        self._genericTest(r'/c /Fo"C:\out dir\\"', ['/c', r'/FoC:\out dir' + '\\'])
+        self._genericTest(r'/Fo"C:\out dir\\" /nologo', [r'/FoC:\out dir' + '\\', r'/nologo'])
+        self._genericTest(r'/c /Fo"C:\out dir\\" /nologo', ['/c', r'/FoC:\out dir' + '\\', r'/nologo'])
+
+    def testVyachselavCase(self):
+        self._genericTest(
+            r'"-IC:\Program files\Some library" -DX=1 -DVERSION=\"1.0\" -I..\.. -I"..\..\lib" -DMYPATH=\"C:\Path\"',
+            [
+                r'-IC:\Program files\Some library',
+                r'-DX=1',
+                r'-DVERSION="1.0"',
+                r'-I..\..',
+                r'-I..\..\lib',
+                r'-DMYPATH="C:\Path"'
+            ])
+
+    def testLineEndings(self):
+        self._genericTest('-A\n-B', ['-A', '-B'])
+        self._genericTest('-A\r\n-B', ['-A', '-B'])
+        self._genericTest('-A -B\r\n-C -D -E', ['-A', '-B', '-C', '-D', '-E'])
+
+    def testInitialBackslash(self):
+        self._genericTest(r'/Fo"C:\out dir\"', [r'/FoC:\out dir"'])
+        self._genericTest(r'\foo.cpp', [r'\foo.cpp'])
+        self._genericTest(r'/nologo \foo.cpp', [r'/nologo', r'\foo.cpp'])
+        self._genericTest(r'\foo.cpp /c', [r'\foo.cpp', r'/c'])

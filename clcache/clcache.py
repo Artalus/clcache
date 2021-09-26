@@ -13,14 +13,13 @@ import contextlib
 import multiprocessing
 import os
 import re
-import subprocess
 import sys
 from tempfile import TemporaryFile
 from typing import Any, List, Tuple, Iterator, Dict
 
 from .errors import *
 from .print import *
-from .cmdline import CommandLineAnalyzer
+from .cmdline import *
 from .lock import CacheLock
 from .stats import (
     Statistics,
@@ -221,84 +220,6 @@ def expandBasedirPlaceholder(path):
         return path.replace(BASEDIR_REPLACEMENT, baseDir, 1)
     else:
         return path
-
-
-class CommandLineTokenizer:
-    def __init__(self, content):
-        self.argv = []
-        self._content = content
-        self._pos = 0
-        self._token = ''
-        self._parser = self._initialState
-
-        while self._pos < len(self._content):
-            self._parser = self._parser(self._content[self._pos])
-            self._pos += 1
-
-        if self._token:
-            self.argv.append(self._token)
-
-    def _initialState(self, currentChar):
-        if currentChar.isspace():
-            return self._initialState
-
-        if currentChar == '"':
-            return self._quotedState
-
-        if currentChar == '\\':
-            self._parseBackslash()
-            return self._unquotedState
-
-        self._token += currentChar
-        return self._unquotedState
-
-    def _unquotedState(self, currentChar):
-        if currentChar.isspace():
-            self.argv.append(self._token)
-            self._token = ''
-            return self._initialState
-
-        if currentChar == '"':
-            return self._quotedState
-
-        if currentChar == '\\':
-            self._parseBackslash()
-            return self._unquotedState
-
-        self._token += currentChar
-        return self._unquotedState
-
-    def _quotedState(self, currentChar):
-        if currentChar == '"':
-            return self._unquotedState
-
-        if currentChar == '\\':
-            self._parseBackslash()
-            return self._quotedState
-
-        self._token += currentChar
-        return self._quotedState
-
-    def _parseBackslash(self):
-        numBackslashes = 0
-        while self._pos < len(self._content) and self._content[self._pos] == '\\':
-            self._pos += 1
-            numBackslashes += 1
-
-        followedByDoubleQuote = self._pos < len(self._content) and self._content[self._pos] == '"'
-        if followedByDoubleQuote:
-            self._token += '\\' * (numBackslashes // 2)
-            if numBackslashes % 2 == 0:
-                self._pos -= 1
-            else:
-                self._token += '"'
-        else:
-            self._token += '\\' * numBackslashes
-            self._pos -= 1
-
-
-def splitCommandsFile(content):
-    return CommandLineTokenizer(content).argv
 
 
 def expandCommandLine(cmdline):
