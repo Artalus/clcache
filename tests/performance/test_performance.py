@@ -14,7 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+from tempfile import TemporaryDirectory
 import timeit
 import unittest
 
@@ -50,18 +50,22 @@ class TestConcurrency(unittest.TestCase):
             cls.sources.append(os.path.join(ASSETS_DIR, 'concurrency', 'file{:02d}.cpp'.format(i)))
 
     def testConcurrentHitsScaling(self):
-        with tempfile.TemporaryDirectory() as tempDir:
-            customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
+        with TemporaryDirectory() as cacheDir, TemporaryDirectory() as outDir:
+            customEnv = dict(os.environ, CLCACHE_DIR=cacheDir)
 
-            cache = clcache.Cache(tempDir)
+            cache = clcache.Cache(cacheDir)
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
                 self.assertEqual(stats.numCacheMisses(), 0)
                 self.assertEqual(stats.numCacheEntries(), 0)
 
+            output = outDir
+            if not output.endswith(os.path.sep):
+                output += os.path.sep
+
             # Populate cache
-            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c'] + TestConcurrency.sources
+            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c', '/Fo'+output] + TestConcurrency.sources
             coldCacheSequential = takeTime(lambda: subprocess.check_call(cmd, env=customEnv))
 
             with cache.statistics as stats:
@@ -70,7 +74,7 @@ class TestConcurrency(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), len(TestConcurrency.sources))
 
             # Compile one-by-one, measuring the time.
-            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c'] + TestConcurrency.sources
+            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c', '/Fo'+output] + TestConcurrency.sources
             hotCacheSequential = takeTime(lambda: subprocess.check_call(cmd, env=customEnv))
 
             with cache.statistics as stats:
@@ -79,7 +83,7 @@ class TestConcurrency(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), len(TestConcurrency.sources))
 
             # Recompile with many concurrent processes, measuring time
-            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c', '/MP{}'.format(cpu_count())] + TestConcurrency.sources
+            cmd = CLCACHE_CMD + ['/nologo', '/EHsc', '/c', '/MP{}'.format(cpu_count()), '/Fo'+output] + TestConcurrency.sources
             hotCacheConcurrent = takeTime(lambda: subprocess.check_call(cmd, env=customEnv))
 
             with cache.statistics as stats:

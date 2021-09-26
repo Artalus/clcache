@@ -16,7 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+from tempfile import TemporaryDirectory
 import unittest
 import time
 import pytest
@@ -37,6 +37,13 @@ MONKEY_LOADED = "clcache.monkey" in sys.modules
 CLCACHE_CMD = ['clcache']
 
 
+def separize(outDir):
+    output = outDir
+    if not output.endswith(os.path.sep):
+        output += os.path.sep
+    return output
+
+
 @contextmanager
 def cd(targetDirectory):
     oldDirectory = os.getcwd()
@@ -49,7 +56,7 @@ def cd(targetDirectory):
 
 class TestCommandLineArguments(unittest.TestCase):
     def testValidMaxSize(self):
-        with tempfile.TemporaryDirectory() as tempDir:
+        with TemporaryDirectory() as tempDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
             validValues = ["1", "  10", "42  ", "22222222"]
             for value in validValues:
@@ -66,7 +73,7 @@ class TestCommandLineArguments(unittest.TestCase):
             self.assertNotEqual(subprocess.call(cmd), 0, "Command must fail for max size: '" + value + "'")
 
     def testPrintStatistics(self):
-        with tempfile.TemporaryDirectory() as tempDir:
+        with TemporaryDirectory() as tempDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
             cmd = CLCACHE_CMD +  ["-s"]
             self.assertEqual(
@@ -95,64 +102,72 @@ class TestDistutils(unittest.TestCase):
 
 class TestCompileRuns(unittest.TestCase):
     def testBasicCompileCc(self):
-        cmd = CLCACHE_CMD + ["/nologo", "/c", os.path.join(ASSETS_DIR, "fibonacci.c")]
-        subprocess.check_call(cmd)
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/c", os.path.join(ASSETS_DIR, "fibonacci.c"), '/Fo'+separize(outDir)]
+            subprocess.check_call(cmd)
 
     def testBasicCompileCpp(self):
-        cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp")]
-        subprocess.check_call(cmd)
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp"), '/Fo'+separize(outDir)]
+            subprocess.check_call(cmd)
 
     def testCompileLinkRunCc(self):
-        with cd(ASSETS_DIR):
-            cmd = CLCACHE_CMD + ["/nologo", "/c", "fibonacci.c", "/Fofibonacci_c.obj"]
+        with cd(ASSETS_DIR), TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/c", "fibonacci.c", '/Fo'+separize(outDir)]
             subprocess.check_call(cmd)
-            cmd = ["link", "/nologo", "/OUT:fibonacci_c.exe", "fibonacci_c.obj"]
+            exe = os.path.join(outDir, "fibonacci_c.exe")
+            cmd = ["link", "/nologo", "/OUT:"+exe, os.path.join(outDir, "fibonacci.obj")]
             subprocess.check_call(cmd)
-            cmd = ["fibonacci_c.exe"]
+            cmd = [exe]
             output = subprocess.check_output(cmd).decode("ascii").strip()
             self.assertEqual(output, "0 1 1 2 3 5 8 13 21 34 55 89 144 233 377")
 
     def testCompileLinkRunCpp(self):
-        with cd(ASSETS_DIR):
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "fibonacci.cpp", "/Fofibonacci_cpp.obj"]
+        with cd(ASSETS_DIR), TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "fibonacci.cpp", '/Fo'+separize(outDir)]
             subprocess.check_call(cmd)
-            cmd = ["link", "/nologo", "/OUT:fibonacci_cpp.exe", "fibonacci_cpp.obj"]
+            exe = os.path.join(outDir, "fibonacci_cpp.exe")
+            cmd = ["link", "/nologo", "/OUT:"+exe, os.path.join(outDir, "fibonacci.obj")]
             subprocess.check_call(cmd)
-            cmd = ["fibonacci_cpp.exe"]
+            cmd = [exe]
             output = subprocess.check_output(cmd).decode("ascii").strip()
             self.assertEqual(output, "0 1 1 2 3 5 8 13 21 34 55 89 144 233 377")
 
     def testRecompile(self):
-        cmd = CLCACHE_CMD + [
-            "/nologo",
-            "/EHsc",
-            "/c",
-            os.path.join(ASSETS_DIR, "recompile1.cpp")
-        ]
-        subprocess.check_call(cmd) # Compile once
-        subprocess.check_call(cmd) # Compile again
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + [
+                "/nologo",
+                "/EHsc",
+                "/c",
+                os.path.join(ASSETS_DIR, "recompile1.cpp"),
+                '/Fo'+separize(outDir),
+            ]
+            subprocess.check_call(cmd) # Compile once
+            subprocess.check_call(cmd) # Compile again
 
     def testRecompileObjectSetSameDir(self):
-        cmd = CLCACHE_CMD + [
-            "/nologo",
-            "/EHsc",
-            "/c",
-            os.path.join(ASSETS_DIR, "recompile2.cpp"),
-            "/Fotests\\integration\\output\\recompile2_custom_object_name.obj"
-        ]
-        subprocess.check_call(cmd) # Compile once
-        subprocess.check_call(cmd) # Compile again
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + [
+                "/nologo",
+                "/EHsc",
+                "/c",
+                os.path.join(ASSETS_DIR, "recompile2.cpp"),
+                '/Fo'+separize(outDir),
+            ]
+            subprocess.check_call(cmd) # Compile once
+            subprocess.check_call(cmd) # Compile again
 
     def testRecompileObjectSetOtherDir(self):
-        cmd = CLCACHE_CMD + [
-            "/nologo",
-            "/EHsc",
-            "/c",
-            os.path.join(ASSETS_DIR, "recompile3.cpp"),
-            "/Fotests\\integration\\output\\recompile2_custom_object_name.obj"
-        ]
-        subprocess.check_call(cmd) # Compile once
-        subprocess.check_call(cmd) # Compile again
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + [
+                "/nologo",
+                "/EHsc",
+                "/c",
+                os.path.join(ASSETS_DIR, "recompile3.cpp"),
+                '/Fo'+separize(outDir),
+            ]
+            subprocess.check_call(cmd) # Compile once
+            subprocess.check_call(cmd) # Compile again
 
     def testPipedOutput(self):
         def debugLinebreaks(text):
@@ -161,111 +176,113 @@ class TestCompileRuns(unittest.TestCase):
             for line in lines:
                 out.append(line.replace("\r", "<CR>").replace("\n", "<LN>"))
             return "\n".join(out)
+        with TemporaryDirectory() as outDir:
+            commands = [
+                # just show cl.exe version
+                {
+                    'directMode': True,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD
+                },
+                # passed to real compiler
+                {
+                    'directMode': True,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD + ['/E', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+                # Unique parameters ensure this was not cached yet (at least in CI)
+                {
+                    'directMode': True,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD + ['/wd4267', '/wo4018', '/c', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+                # Cache hit
+                {
+                    'directMode': True,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD + ['/wd4267', '/wo4018', '/c', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+                # Unique parameters ensure this was not cached yet (at least in CI)
+                {
+                    'directMode': False,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD + ['/wd4269', '/wo4019', '/c', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+                # Cache hit
+                {
+                    'directMode': False,
+                    'compileFails': False,
+                    'cmd': CLCACHE_CMD + ['/wd4269', '/wo4019', '/c', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+                # Compile fails in NODIRECT mode. This will trigger a preprocessor fail via
+                # cl.exe /EP /w1NONNUMERIC fibonacci.c
+                {
+                    'directMode': False,
+                    'compileFails': True,
+                    'cmd': CLCACHE_CMD + ['/w1NONNUMERIC', '/c', 'fibonacci.c', '/Fo'+separize(outDir)]
+                },
+            ]
 
-        commands = [
-            # just show cl.exe version
-            {
-                'directMode': True,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD
-            },
-            # passed to real compiler
-            {
-                'directMode': True,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD + ['/E', 'fibonacci.c']
-            },
-            # Unique parameters ensure this was not cached yet (at least in CI)
-            {
-                'directMode': True,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD + ['/wd4267', '/wo4018', '/c', 'fibonacci.c']
-            },
-            # Cache hit
-            {
-                'directMode': True,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD + ['/wd4267', '/wo4018', '/c', 'fibonacci.c']
-            },
-            # Unique parameters ensure this was not cached yet (at least in CI)
-            {
-                'directMode': False,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD + ['/wd4269', '/wo4019', '/c', 'fibonacci.c']
-            },
-            # Cache hit
-            {
-                'directMode': False,
-                'compileFails': False,
-                'cmd': CLCACHE_CMD + ['/wd4269', '/wo4019', '/c', 'fibonacci.c']
-            },
-            # Compile fails in NODIRECT mode. This will trigger a preprocessor fail via
-            # cl.exe /EP /w1NONNUMERIC fibonacci.c
-            {
-                'directMode': False,
-                'compileFails': True,
-                'cmd': CLCACHE_CMD + ['/w1NONNUMERIC', '/c', 'fibonacci.c']
-            },
-        ]
+            for command in commands:
+                with cd(ASSETS_DIR):
+                    if command['directMode']:
+                        testEnvironment = dict(os.environ)
+                    else:
+                        testEnvironment = dict(os.environ, CLCACHE_NODIRECT="1")
 
-        for command in commands:
-            with cd(ASSETS_DIR):
-                if command['directMode']:
-                    testEnvironment = dict(os.environ)
-                else:
-                    testEnvironment = dict(os.environ, CLCACHE_NODIRECT="1")
+                    proc = subprocess.Popen(command['cmd'], env=testEnvironment,
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    stdoutBinary, stderrBinary = proc.communicate()
+                    stdout = stdoutBinary.decode(clcache.CL_DEFAULT_CODEC)
+                    stderr = stderrBinary.decode(clcache.CL_DEFAULT_CODEC)
 
-                proc = subprocess.Popen(command['cmd'], env=testEnvironment,
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                stdoutBinary, stderrBinary = proc.communicate()
-                stdout = stdoutBinary.decode(clcache.CL_DEFAULT_CODEC)
-                stderr = stderrBinary.decode(clcache.CL_DEFAULT_CODEC)
+                    if not command['compileFails'] and proc.returncode != 0:
+                        self.fail(
+                            'Compile failed with return code {}.\n'.format(proc.returncode) +
+                            'Command: {}\nEnvironment: {}\nStdout: {}\nStderr: {}'.format(
+                                command['cmd'], testEnvironment, stdout, stderr))
 
-                if not command['compileFails'] and proc.returncode != 0:
-                    self.fail(
-                        'Compile failed with return code {}.\n'.format(proc.returncode) +
-                        'Command: {}\nEnvironment: {}\nStdout: {}\nStderr: {}'.format(
-                            command['cmd'], testEnvironment, stdout, stderr))
+                    if command['compileFails'] and proc.returncode == 0:
+                        self.fail('Compile was expected to fail but did not. {}'.format(command['cmd']))
 
-                if command['compileFails'] and proc.returncode == 0:
-                    self.fail('Compile was expected to fail but did not. {}'.format(command['cmd']))
-
-                for output in [stdout, stderr]:
-                    if output:
-                        self.assertTrue('\r\r\n' not in output,
-                                        'Output has duplicated CR.\nCommand: {}\nOutput: {}'.format(
-                                            command['cmd'], debugLinebreaks(output)))
-                        # Just to be sure we have newlines
-                        self.assertTrue('\r\n' in output,
-                                        'Output has no CRLF.\nCommand: {}\nOutput: {}'.format(
-                                            command['cmd'], debugLinebreaks(output)))
+                    for output in [stdout, stderr]:
+                        if output:
+                            self.assertTrue('\r\r\n' not in output,
+                                            'Output has duplicated CR.\nCommand: {}\nOutput: {}'.format(
+                                                command['cmd'], debugLinebreaks(output)))
+                            # Just to be sure we have newlines
+                            self.assertTrue('\r\n' in output,
+                                            'Output has no CRLF.\nCommand: {}\nOutput: {}'.format(
+                                                command['cmd'], debugLinebreaks(output)))
 
     def testBasicCompileCcSpecifiedCompiler(self):
         clCommand = clcache.findCompilerBinary()
         self.assertIsNotNone(clCommand, "Could not locate cl.exe")
         self.assertTrue(clCommand.endswith(".exe"), "Compiler executable is not an exe file")
-        cmd = CLCACHE_CMD + [clCommand, "/nologo", "/c", os.path.join(ASSETS_DIR, "fibonacci.c")]
-        subprocess.check_call(cmd)
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + [clCommand, "/nologo", "/c", os.path.join(ASSETS_DIR, "fibonacci.c"), '/Fo'+separize(outDir)]
+            subprocess.check_call(cmd)
 
     def testBasicCompileCppSpecifiedCompiler(self):
         clCommand = clcache.findCompilerBinary()
         self.assertIsNotNone(clCommand, "Could not locate cl.exe")
         self.assertTrue(clCommand.endswith(".exe"), "Compiler executable is not an exe file")
-        cmd = CLCACHE_CMD + [clCommand, "/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp")]
-        subprocess.check_call(cmd)
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + [clCommand, "/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp"), '/Fo'+separize(outDir)]
+            subprocess.check_call(cmd)
 
 class TestCompilerEncoding(unittest.TestCase):
     def testNonAsciiMessage(self):
-        with cd(os.path.join(ASSETS_DIR, "compiler-encoding")):
+        with cd(os.path.join(ASSETS_DIR, "compiler-encoding")), TemporaryDirectory() as outDir:
             for filename in ['non-ascii-message-ansi.c', 'non-ascii-message-utf16.c']:
-                cmd = CLCACHE_CMD + ["/nologo", "/c", filename]
+                cmd = CLCACHE_CMD + ["/nologo", "/c", filename, '/Fo'+separize(outDir)]
                 subprocess.check_call(cmd)
 
 
 class TestHits(unittest.TestCase):
     def testHitsSimple(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")):
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", 'hit.cpp']
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", 'hit.cpp', '/Fo'+separize(outDir)]
             subprocess.check_call(cmd) # Ensure it has been compiled before
 
             cache = clcache.Cache()
@@ -277,10 +294,10 @@ class TestHits(unittest.TestCase):
             self.assertEqual(newHits, oldHits + 1)
 
     def testAlternatingHeadersHit(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -328,10 +345,10 @@ class TestHits(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 2)
 
     def testRemovedHeader(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -379,10 +396,10 @@ class TestHits(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 1)
 
     def testAlternatingTransitiveHeader(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -430,10 +447,10 @@ class TestHits(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 2)
 
     def testRemovedTransitiveHeader(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -481,10 +498,10 @@ class TestHits(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 1)
 
     def testAlternatingIncludeOrder(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with open('A.h', 'w') as header:
                 header.write('#define A 1\n')
@@ -541,10 +558,10 @@ class TestHits(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 2)
 
     def testRepeatedIncludes(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with open('A.h', 'w') as header:
                 header.write('#define A 1\n')
@@ -601,15 +618,15 @@ class TestHits(unittest.TestCase):
 
 class TestPrecompiledHeaders(unittest.TestCase):
     def testSampleproject(self):
-        with cd(os.path.join(ASSETS_DIR, "precompiled-headers")):
+        with cd(os.path.join(ASSETS_DIR, "precompiled-headers")), TemporaryDirectory() as outDir:
             cpp = subprocess.list2cmdline(CLCACHE_CMD)
 
-            testEnvironment = dict(os.environ, CPP=cpp)
+            testEnvironment = dict(os.environ, CPP=cpp, TMP_OUT_DIR=separize(outDir))
 
             cmd = ["nmake", "/nologo"]
             subprocess.check_call(cmd, env=testEnvironment)
 
-            cmd = ["myapp.exe"]
+            cmd = [os.path.join(separize(outDir), "myapp.exe")]
             subprocess.check_call(cmd)
 
             cmd = ["nmake", "/nologo", "clean"]
@@ -620,44 +637,34 @@ class TestPrecompiledHeaders(unittest.TestCase):
 
 
 class TestHeaderChange(unittest.TestCase):
-    def _clean(self):
-        # It seems that subprocess.check_output() occasionally returns before
-        # windows fully releases the respective executable.
-        # This pause prevents failing tests because of missing permissions to remove the file.
-        time.sleep(.1)
-
-        if os.path.isfile("main.obj"):
-            os.remove("main.obj")
-        if os.path.isfile("main.exe"):
-            os.remove("main.exe")
-
-    def _compileAndLink(self, environment):
-        cmdCompile = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "main.cpp"]
-        cmdLink = ["link", "/nologo", "/OUT:main.exe", "main.obj"]
+    def _compileAndLink(self, environment, outDir):
+        cmdCompile = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "main.cpp", '/Fo'+separize(outDir)]
+        exe = os.path.join(outDir, "main.exe")
+        cmdLink = ["link", "/nologo", "/OUT:"+exe, os.path.join(outDir, "main.obj")]
         subprocess.check_call(cmdCompile, env=environment)
         subprocess.check_call(cmdLink, env=environment)
 
     def _performTest(self, env):
         with cd(os.path.join(ASSETS_DIR, "header-change")):
-            self._clean()
+            with TemporaryDirectory() as outDir:
+                with open("version.h", "w") as header:
+                    header.write("#define VERSION 1")
 
-            with open("version.h", "w") as header:
-                header.write("#define VERSION 1")
+                self._compileAndLink(env, outDir)
+                exe = os.path.join(outDir, "main.exe")
+                cmdRun = [exe]
+                output = subprocess.check_output(cmdRun).decode("ascii").strip()
+                self.assertEqual(output, "1")
 
-            self._compileAndLink(env)
-            cmdRun = [os.path.abspath("main.exe")]
-            output = subprocess.check_output(cmdRun).decode("ascii").strip()
-            self.assertEqual(output, "1")
+            with TemporaryDirectory() as outDir:
+                with open("version.h", "w") as header:
+                    header.write("#define VERSION 2")
 
-            self._clean()
-
-            with open("version.h", "w") as header:
-                header.write("#define VERSION 2")
-
-            self._compileAndLink(env)
-            cmdRun = [os.path.abspath("main.exe")]
-            output = subprocess.check_output(cmdRun).decode("ascii").strip()
-            self.assertEqual(output, "2")
+                self._compileAndLink(env, outDir)
+                exe = os.path.join(outDir, "main.exe")
+                cmdRun = [exe]
+                output = subprocess.check_output(cmdRun).decode("ascii").strip()
+                self.assertEqual(output, "2")
 
     def testDirect(self):
         self._performTest(dict(os.environ))
@@ -670,9 +677,9 @@ class TestHeaderMiss(unittest.TestCase):
     # When a required header disappears, we must fall back to real compiler
     # complaining about the miss
     def testRequiredHeaderDisappears(self):
-        with cd(os.path.join(ASSETS_DIR, "header-miss")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "header-miss")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            compileCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "main.cpp"]
+            compileCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "main.cpp", '/Fo'+separize(outDir)]
 
             with open("info.h", "w") as header:
                 header.write("#define INFO 1337\n")
@@ -690,9 +697,9 @@ class TestHeaderMiss(unittest.TestCase):
     # we must fall back to real compiler.
     def testObsoleteHeaderDisappears(self):
         # A includes B
-        with cd(os.path.join(ASSETS_DIR, "header-miss-obsolete")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "header-miss-obsolete")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            compileCmd = CLCACHE_CMD + ["/I.", "/nologo", "/EHsc", "/c", "main.cpp"]
+            compileCmd = CLCACHE_CMD + ["/I.", "/nologo", "/EHsc", "/c", "main.cpp", '/Fo'+separize(outDir)]
             cache = clcache.Cache(tempDir)
 
             with open("A.h", "w") as header:
@@ -743,15 +750,15 @@ class RunParallelBase:
 
     def _buildAll(self):
         processes = []
+        with TemporaryDirectory() as outDir:
+            for sourceFile in glob.glob('*.cpp'):
+                print("Starting compilation of {}".format(sourceFile))
+                cxxflags = ["/c", "/nologo", "/EHsc", '/Fo'+separize(outDir)]
+                cmd = CLCACHE_CMD + cxxflags + [sourceFile]
+                processes.append(subprocess.Popen(cmd, env=self.env))
 
-        for sourceFile in glob.glob('*.cpp'):
-            print("Starting compilation of {}".format(sourceFile))
-            cxxflags = ["/c", "/nologo", "/EHsc"]
-            cmd = CLCACHE_CMD + cxxflags + [sourceFile]
-            processes.append(subprocess.Popen(cmd, env=self.env))
-
-        for p in processes:
-            p.wait()
+            for p in processes:
+                p.wait()
 
     def _createEnv(self, directory):
         return dict(self.env, CLCACHE_DIR=directory)
@@ -780,7 +787,7 @@ class RunParallelBase:
             self.assertEqual(hits + misses, 20)
 
     def testHitViaMpSequential(self):
-        with cd(os.path.join(ASSETS_DIR, "parallel")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "parallel")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
 
             customEnv = self._createEnv(tempDir)
@@ -790,7 +797,7 @@ class RunParallelBase:
                 self.assertEqual(stats.numCacheMisses(), 0)
                 self.assertEqual(stats.numCacheEntries(), 0)
 
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             # Compile random file, filling cache
             subprocess.check_call(cmd + ["fibonacci01.cpp"], env=customEnv)
@@ -809,7 +816,7 @@ class RunParallelBase:
                 self.assertEqual(stats.numCacheEntries(), 1)
 
     def testHitsViaMpConcurrent(self):
-        with cd(os.path.join(ASSETS_DIR, "parallel")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "parallel")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
 
             customEnv = self._createEnv(tempDir)
@@ -819,7 +826,7 @@ class RunParallelBase:
                 self.assertEqual(stats.numCacheMisses(), 0)
                 self.assertEqual(stats.numCacheEntries(), 0)
 
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             # Compile two random files
             subprocess.check_call(cmd + ["fibonacci01.cpp"], env=customEnv)
@@ -840,11 +847,11 @@ class RunParallelBase:
 
     def testOutput(self):
         # type: () -> None
-        with cd(os.path.join(ASSETS_DIR, "parallel")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "parallel")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             sources = glob.glob("*.cpp")
             clcache.Cache(tempDir)
             customEnv = self._createEnv(tempDir)
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
             mpFlag = "/MP" + str(len(sources))
             out = subprocess.check_output(cmd + [mpFlag] + sources, env=customEnv).decode("ascii")
             # print the output so that it shows up in py.test
@@ -860,10 +867,10 @@ class TestRunParallel(RunParallelBase, unittest.TestCase):
 # cl file1.c file2.c
 class TestMultipleSources(unittest.TestCase):
     def testTwo(self):
-        with cd(os.path.join(ASSETS_DIR, "mutiple-sources")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "mutiple-sources")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -885,10 +892,10 @@ class TestMultipleSources(unittest.TestCase):
                 self.assertEqual(stats.numCacheEntries(), 2)
 
     def testFive(self):
-        with cd(os.path.join(ASSETS_DIR, "mutiple-sources")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "mutiple-sources")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             cache = clcache.Cache(tempDir)
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            baseCmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
 
             with cache.statistics as stats:
                 self.assertEqual(stats.numCacheHits(), 0)
@@ -921,11 +928,12 @@ class TestMultipleSources(unittest.TestCase):
                 self.assertEqual(stats.numCacheMisses(), 5)
                 self.assertEqual(stats.numCacheEntries(), 5)
 
+# TODO: check if this test is needed
 class TestMultipleSourceWithClEnv(unittest.TestCase):
     def testAppend(self):
-        with cd(os.path.join(ASSETS_DIR)):
+        with cd(os.path.join(ASSETS_DIR)), TemporaryDirectory() as outDir:
             customEnv = dict(os.environ, _CL_="minimal.cpp")
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c"]
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c"]
             subprocess.check_call(cmd + ["fibonacci.cpp"], env=customEnv)
 
 
@@ -952,9 +960,10 @@ class TestClearing(unittest.TestCase):
     def testClearPostcondition(self):
         cache = clcache.Cache()
 
-        # Compile a random file to populate cache
-        cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp")]
-        subprocess.check_call(cmd)
+        with TemporaryDirectory() as outDir:
+            # Compile a random file to populate cache
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", os.path.join(ASSETS_DIR, "fibonacci.cpp"), '/Fo'+separize(outDir)]
+            subprocess.check_call(cmd)
 
         # Now there should be something in the cache
         with cache.statistics as stats:
@@ -985,7 +994,7 @@ class TestAnalysisErrorsCalls(unittest.TestCase):
     def testAllKnownAnalysisErrors(self):
         # This ensures all AnalysisError cases are run once without crashes
 
-        with cd(os.path.join(ASSETS_DIR)):
+        with cd(os.path.join(ASSETS_DIR)), TemporaryDirectory() as outDir:
             baseCmd = CLCACHE_CMD + ['/nologo']
 
             # NoSourceFileError
@@ -999,42 +1008,41 @@ class TestAnalysisErrorsCalls(unittest.TestCase):
             # InvalidArgumentError
             # This must fail because cl.exe: "cl : Command line error D8004 : '/Zm' requires an argument"
             # Make sure it was cl.exe that failed and not clcache
-            process = subprocess.Popen(baseCmd + ['/c', '/Zm', 'bar', "minimal.cpp"], stderr=subprocess.PIPE)
+            process = subprocess.Popen(baseCmd + ['/c', '/Zm', 'bar', "minimal.cpp", '/Fo'+separize(outDir)], stderr=subprocess.PIPE)
             _, stderr = process.communicate()
             self.assertEqual(process.returncode, 2)
             self.assertTrue("D8004" in stderr.decode(clcache.CL_DEFAULT_CODEC))
 
             # MultipleSourceFilesComplexError
-            subprocess.check_call(baseCmd + ['/c', '/Tcfibonacci.c', "minimal.cpp"])
+            subprocess.check_call(baseCmd + ['/c', '/Tcfibonacci.c', "minimal.cpp", '/Fo'+separize(outDir)])
             # CalledForLinkError
-            subprocess.check_call(baseCmd + ["fibonacci.cpp"])
+            subprocess.check_call(baseCmd + ["fibonacci.cpp", "/Fe:"+separize(outDir), '/Fo'+separize(outDir)])
             # CalledWithPchError
-            subprocess.check_call(baseCmd + ['/c', '/Yc', "minimal.cpp"])
+            subprocess.check_call(baseCmd + ['/c', '/Yc', '/Fp'+separize(outDir)+'minimal.pch', "minimal.cpp", '/Fo'+separize(outDir)])
             # ExternalDebugInfoError
-            subprocess.check_call(baseCmd + ['/c', '/Zi', "minimal.cpp"])
+            subprocess.check_call(baseCmd + ['/c', '/Zi', '/Fd'+separize(outDir)+'minimal.pdb', "minimal.cpp", '/Fo'+separize(outDir)])
             # CalledForPreprocessingError
-            subprocess.check_call(baseCmd + ['/E', "minimal.cpp"])
+            subprocess.check_call(baseCmd + ['/E', "minimal.cpp", '/Fo'+separize(outDir)])
 
 
 class TestPreprocessorCalls(unittest.TestCase):
     def testHitsSimple(self):
-        invocations = [
-            ["/nologo", "/E"],
-            ["/nologo", "/EP", "/c"],
-            ["/nologo", "/P", "/c"],
-            ["/nologo", "/E", "/EP"],
-        ]
-
         cache = clcache.Cache()
         with cache.statistics as stats:
             oldPreprocessorCalls = stats.numCallsForPreprocessing()
-
-        for i, invocation in enumerate(invocations, 1):
-            cmd = CLCACHE_CMD + invocation + [os.path.join(ASSETS_DIR, "minimal.cpp")]
-            subprocess.check_call(cmd)
-            with cache.statistics as stats:
-                newPreprocessorCalls = stats.numCallsForPreprocessing()
-            self.assertEqual(newPreprocessorCalls, oldPreprocessorCalls + i, str(cmd))
+        with TemporaryDirectory() as outDir:
+            invocations = [
+                ["/nologo", "/E"],
+                ["/nologo", "/EP", "/c", '/Fo'+separize(outDir)],
+                ["/nologo", "/P", "/c", '/Fi'+separize(outDir)],
+                ["/nologo", "/E", "/EP"],
+            ]
+            for i, invocation in enumerate(invocations, 1):
+                cmd = CLCACHE_CMD + invocation + [os.path.join(ASSETS_DIR, "minimal.cpp")]
+                subprocess.check_call(cmd)
+                with cache.statistics as stats:
+                    newPreprocessorCalls = stats.numCallsForPreprocessing()
+                self.assertEqual(newPreprocessorCalls, oldPreprocessorCalls + i, str(cmd))
 
 
 class TestNoDirectCalls(RunParallelBase, unittest.TestCase):
@@ -1044,14 +1052,14 @@ class TestNoDirectCalls(RunParallelBase, unittest.TestCase):
         cache = clcache.Cache()
         oldStats = copy.copy(cache.statistics)
 
-        cmd = CLCACHE_CMD + ["/nologo", "/c", "doesnotexist.cpp"]
-
-        self.assertNotEqual(subprocess.call(cmd, env=self.env), 0)
-        self.assertEqual(cache.statistics, oldStats)
+        with TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/c", "doesnotexist.cpp", '/Fo'+separize(outDir)]
+            self.assertNotEqual(subprocess.call(cmd, env=self.env), 0)
+            self.assertEqual(cache.statistics, oldStats)
 
     def testHit(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")):
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "hit.cpp"]
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as outDir:
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "hit.cpp", '/Fo'+separize(outDir)]
 
             self.assertEqual(subprocess.call(cmd, env=self.env), 0)
 
@@ -1066,7 +1074,7 @@ class TestNoDirectCalls(RunParallelBase, unittest.TestCase):
 class TestBasedir(unittest.TestCase):
     def setUp(self):
         self.projectDir = os.path.join(ASSETS_DIR, "basedir")
-        self.tempDir = tempfile.TemporaryDirectory()
+        self.tempDir = TemporaryDirectory()
         self.clcacheDir = os.path.join(self.tempDir.name, "clcache")
         self.savedCwd = os.getcwd()
 
@@ -1157,19 +1165,20 @@ class TestBasedir(unittest.TestCase):
         basedir = os.getcwd()
 
         def runCompiler(cppFile="main.cpp"):
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", "/I."]
-            cmd.append(cppFile)
-            env = dict(os.environ, CLCACHE_DIR=self.clcacheDir, CLCACHE_BASEDIR=basedir)
-            self.assertEqual(subprocess.call(cmd, env=env), 0)
+            with TemporaryDirectory() as outDir:
+                cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c", "/I."]
+                cmd.append(cppFile)
+                env = dict(os.environ, CLCACHE_DIR=self.clcacheDir, CLCACHE_BASEDIR=basedir)
+                self.assertEqual(subprocess.call(cmd, env=env), 0)
 
         self.expectMiss([runCompiler, runCompiler])
 
 
 class TestCleanCache(unittest.TestCase):
     def testEvictedObject(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", 'hit.cpp']
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", '/Fo'+separize(outDir), "/c", 'hit.cpp']
 
             # Compile once to insert the object in the cache
             subprocess.check_call(cmd, env=customEnv)
@@ -1181,9 +1190,9 @@ class TestCleanCache(unittest.TestCase):
             self.assertEqual(subprocess.call(cmd, env=customEnv), 0)
 
     def testEvictedManifest(self):
-        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), tempfile.TemporaryDirectory() as tempDir:
+        with cd(os.path.join(ASSETS_DIR, "hits-and-misses")), TemporaryDirectory() as tempDir, TemporaryDirectory() as outDir:
             customEnv = dict(os.environ, CLCACHE_DIR=tempDir)
-            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", 'hit.cpp']
+            cmd = CLCACHE_CMD + ["/nologo", "/EHsc", "/c", 'hit.cpp', '/Fo'+separize(outDir)]
 
             # Compile once to insert the object in the cache
             subprocess.check_call(cmd, env=customEnv)
