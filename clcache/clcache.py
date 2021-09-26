@@ -45,83 +45,6 @@ def allSectionsLocked(repository):
         for section in sections:
             section.lock.release()
 
-
-class ManifestRepository:
-    # Bump this counter whenever the current manifest file format changes.
-    # E.g. changing the file format from {'oldkey': ...} to {'newkey': ...} requires
-    # invalidation, such that a manifest that was stored using the old format is not
-    # interpreted using the new format. Instead the old file will not be touched
-    # again due to a new manifest hash and is cleaned away after some time.
-    MANIFEST_FILE_FORMAT_VERSION = 6
-
-    def __init__(self, manifestsRootDir):
-        self._manifestsRootDir = manifestsRootDir
-
-    def section(self, manifestHash):
-        return ManifestSection(os.path.join(self._manifestsRootDir, manifestHash[:2]))
-
-    def sections(self):
-        return (ManifestSection(path) for path in childDirectories(self._manifestsRootDir))
-
-    def clean(self, maxManifestsSize):
-        manifestFileInfos = []
-        for section in self.sections():
-            for filePath in section.manifestFiles():
-                try:
-                    manifestFileInfos.append((os.stat(filePath), filePath))
-                except OSError:
-                    pass
-
-        manifestFileInfos.sort(key=lambda t: t[0].st_atime, reverse=True)
-
-        remainingObjectsSize = 0
-        for stat, filepath in manifestFileInfos:
-            if remainingObjectsSize + stat.st_size <= maxManifestsSize:
-                remainingObjectsSize += stat.st_size
-            else:
-                os.remove(filepath)
-        return remainingObjectsSize
-
-    @staticmethod
-    def getManifestHash(compilerBinary, commandLine, sourceFile):
-        compilerHash = getCompilerHash(compilerBinary)
-
-        # NOTE: We intentionally do not normalize command line to include
-        # preprocessor options.  In direct mode we do not perform preprocessing
-        # before cache lookup, so all parameters are important.  One of the few
-        # exceptions to this rule is the /MP switch, which only defines how many
-        # compiler processes are running simultaneusly.  Arguments that specify
-        # the compiler where to find the source files are parsed to replace
-        # ocurrences of CLCACHE_BASEDIR by a placeholder.
-        arguments, inputFiles = CommandLineAnalyzer.parseArgumentsAndInputFiles(commandLine)
-        collapseBasedirInCmdPath = lambda path: collapseBasedirToPlaceholder(os.path.normcase(os.path.abspath(path)))
-
-        commandLine = []
-        argumentsWithPaths = ("AI", "I", "FU")
-        for k in sorted(arguments.keys()):
-            if k in argumentsWithPaths:
-                commandLine.extend(["/" + k + collapseBasedirInCmdPath(arg) for arg in arguments[k]])
-            else:
-                commandLine.extend(["/" + k + arg for arg in arguments[k]])
-
-        commandLine.extend(collapseBasedirInCmdPath(arg) for arg in inputFiles)
-
-        additionalData = "{}|{}|{}".format(
-            compilerHash, commandLine, ManifestRepository.MANIFEST_FILE_FORMAT_VERSION)
-        return getFileHash(sourceFile, additionalData)
-
-    @staticmethod
-    def getIncludesContentHashForFiles(includes):
-        try:
-            listOfHashes = getFileHashes(includes)
-        except FileNotFoundError:
-            raise IncludeNotFoundException
-        return ManifestRepository.getIncludesContentHashForHashes(listOfHashes)
-
-    @staticmethod
-    def getIncludesContentHashForHashes(listOfHashes):
-        return HashAlgorithm(','.join(listOfHashes).encode()).hexdigest()
-
 class CacheFileStrategy:
     def __init__(self, cacheDirectory=None):
         self.dir = cacheDirectory
@@ -600,17 +523,6 @@ def processCacheHit(cache, objectFile, cachekey):
         copyOrLink(cachedArtifacts.objectFilePath, objectFile)
         printTraceStatement("Finished. Exit code 0")
         return 0, cachedArtifacts.stdout, cachedArtifacts.stderr, False
-
-
-def createManifestEntry(manifestHash, includePaths):
-    sortedIncludePaths = sorted(set(includePaths))
-    includeHashes = getFileHashes(sortedIncludePaths)
-
-    safeIncludes = [collapseBasedirToPlaceholder(path) for path in sortedIncludePaths]
-    includesContentHash = ManifestRepository.getIncludesContentHashForHashes(includeHashes)
-    cachekey = CompilerArtifactsRepository.computeKeyDirect(manifestHash, includesContentHash)
-
-    return ManifestEntry(safeIncludes, includesContentHash, cachekey)
 
 
 def updateCacheStatistics(cache, method):
