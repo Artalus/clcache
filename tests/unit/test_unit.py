@@ -100,34 +100,6 @@ class TestConfiguration(unittest.TestCase):
             self.assertGreaterEqual(cfg.maximumCacheSize(), 1024) # 1KiB
 
 
-class TestExpandCommandLine(unittest.TestCase):
-    def _genericTest(self, commandLine, expected):
-        with cd(os.path.join(ASSETS_DIR, "response-files")):
-            self.assertEqual(clcache.expandCommandLine(commandLine), expected)
-
-    def testNoResponseFile(self):
-        self._genericTest(['-A', '-B'], ['-A', '-B'])
-
-    def testMissingResponseFile(self):
-        with self.assertRaises(FileNotFoundError):
-            self._genericTest(['-A', '@no_such_file.rsp', '-B'], [])
-
-    def testSingleResponseFile(self):
-        self._genericTest(['-A', '@default_encoded.rsp', '-B'], ['-A', '/DPASSWORD=Käse', '/nologo', '-B'])
-
-    def testMultipleResponseFile(self):
-        self._genericTest(
-            ['-A', '@default_encoded.rsp', '@utf16_encoded.rsp', '-B'],
-            ['-A', '/DPASSWORD=Käse', '/nologo', '/DPASSWORD=Фёдор', '/IC:\\Users\\Миха́йлович', '-B']
-        )
-
-    def testNestedResponseFiles(self):
-        self._genericTest(
-            ['-A', '@nested_response_file.rsp', '-B'],
-            ['-A', '/O2', '/DSOMETHING=foo', '/DANOTHERTHING=bar', '/nologo', '-B']
-        )
-
-
 class TestFilterSourceFiles(unittest.TestCase):
     def _assertFiltered(self, cmdLine, files, filteredCmdLine):
         # type: (List[str], List[Tuple[str, str]]) -> List[str]

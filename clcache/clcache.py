@@ -222,42 +222,6 @@ def expandBasedirPlaceholder(path):
         return path
 
 
-def expandCommandLine(cmdline):
-    ret = []
-
-    for arg in cmdline:
-        if arg[0] == '@':
-            includeFile = arg[1:]
-            with open(includeFile, 'rb') as f:
-                rawBytes = f.read()
-
-            encoding = None
-
-            bomToEncoding = {
-                codecs.BOM_UTF32_BE: 'utf-32-be',
-                codecs.BOM_UTF32_LE: 'utf-32-le',
-                codecs.BOM_UTF16_BE: 'utf-16-be',
-                codecs.BOM_UTF16_LE: 'utf-16-le',
-            }
-
-            for bom, enc in bomToEncoding.items():
-                if rawBytes.startswith(bom):
-                    encoding = enc
-                    rawBytes = rawBytes[len(bom):]
-                    break
-
-            if encoding:
-                includeFileContents = rawBytes.decode(encoding)
-            else:
-                includeFileContents = rawBytes.decode("UTF-8")
-
-            ret.extend(expandCommandLine(splitCommandsFile(includeFileContents.strip())))
-        else:
-            ret.append(arg)
-
-    return ret
-
-
 def extendCommandLineFromEnvironment(cmdLine, environment):
     remainingEnvironment = environment.copy()
 
