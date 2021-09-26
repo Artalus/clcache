@@ -1,7 +1,11 @@
 from collections import namedtuple
 import os
-from shutil import rmtree
+from shutil import (
+    rmtree,
+    which,
+)
 import subprocess
+import sys
 from tempfile import TemporaryFile
 
 from .errors import CompilerFailedException
@@ -209,6 +213,28 @@ def invokeRealCompiler(compilerBinary, cmdLine, captureOutput=False, outputAsStr
     return returnCode, stdout, stderr
 
 
+def findCompilerBinary():
+    if "CLCACHE_CL" in os.environ:
+        path = os.environ["CLCACHE_CL"]
+        if os.path.basename(path) == path:
+            path = which(path)
+
+        return path if os.path.exists(path) else None
+
+    frozenByPy2Exe = hasattr(sys, "frozen")
+
+    for p in os.environ["PATH"].split(os.pathsep):
+        path = os.path.join(p, "cl.exe")
+        if os.path.exists(path):
+            if not frozenByPy2Exe:
+                return path
+
+            # Guard against recursively calling ourselves
+            if path.upper() != myExecutablePath():
+                return path
+    return None
+
+
 # private
 
 
@@ -223,3 +249,8 @@ def getCachedCompilerConsoleOutput(path):
 def setCachedCompilerConsoleOutput(path, output):
     with open(path, 'wb') as f:
         f.write(output.encode(CACHE_COMPILER_OUTPUT_STORAGE_CODEC))
+
+
+def myExecutablePath():
+    assert hasattr(sys, "frozen"), "is not frozen by py2exe"
+    return sys.executable.upper()

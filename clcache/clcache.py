@@ -223,33 +223,6 @@ def expandBasedirPlaceholder(path):
         return path
 
 
-def myExecutablePath():
-    assert hasattr(sys, "frozen"), "is not frozen by py2exe"
-    return sys.executable.upper()
-
-
-def findCompilerBinary():
-    if "CLCACHE_CL" in os.environ:
-        path = os.environ["CLCACHE_CL"]
-        if os.path.basename(path) == path:
-            path = which(path)
-
-        return path if os.path.exists(path) else None
-
-    frozenByPy2Exe = hasattr(sys, "frozen")
-
-    for p in os.environ["PATH"].split(os.pathsep):
-        path = os.path.join(p, "cl.exe")
-        if os.path.exists(path):
-            if not frozenByPy2Exe:
-                return path
-
-            # Guard against recursively calling ourselves
-            if path.upper() != myExecutablePath():
-                return path
-    return None
-
-
 class CommandLineTokenizer:
     def __init__(self, content):
         self.argv = []
