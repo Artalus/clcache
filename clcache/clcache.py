@@ -31,9 +31,6 @@ from .hash import *
 from .manifest import *
 from .compiler import *
 
-# The cl default codec
-CL_DEFAULT_CODEC = 'mbcs'
-
 
 
 
@@ -124,95 +121,6 @@ class ManifestRepository:
     @staticmethod
     def getIncludesContentHashForHashes(listOfHashes):
         return HashAlgorithm(','.join(listOfHashes).encode()).hexdigest()
-
-
-class CompilerArtifactsRepository:
-    def __init__(self, compilerArtifactsRootDir):
-        self._compilerArtifactsRootDir = compilerArtifactsRootDir
-
-    def section(self, key):
-        return CompilerArtifactsSection(os.path.join(self._compilerArtifactsRootDir, key[:2]))
-
-    def sections(self):
-        return (CompilerArtifactsSection(path) for path in childDirectories(self._compilerArtifactsRootDir))
-
-    def removeEntry(self, keyToBeRemoved):
-        compilerArtifactsDir = self.section(keyToBeRemoved).cacheEntryDir(keyToBeRemoved)
-        rmtree(compilerArtifactsDir, ignore_errors=True)
-
-    def clean(self, maxCompilerArtifactsSize):
-        objectInfos = []
-        for section in self.sections():
-            for cachekey in section.cacheEntries():
-                try:
-                    objectStat = os.stat(section.cachedObjectName(cachekey))
-                    objectInfos.append((objectStat, cachekey))
-                except OSError:
-                    pass
-
-        objectInfos.sort(key=lambda t: t[0].st_atime)
-
-        # compute real current size to fix up the stored cacheSize
-        currentSizeObjects = sum(x[0].st_size for x in objectInfos)
-
-        removedItems = 0
-        for stat, cachekey in objectInfos:
-            self.removeEntry(cachekey)
-            removedItems += 1
-            currentSizeObjects -= stat.st_size
-            if currentSizeObjects < maxCompilerArtifactsSize:
-                break
-
-        return len(objectInfos)-removedItems, currentSizeObjects
-
-    @staticmethod
-    def computeKeyDirect(manifestHash, includesContentHash):
-        # We must take into account manifestHash to avoid
-        # collisions when different source files use the same
-        # set of includes.
-        return getStringHash(manifestHash + includesContentHash)
-
-    @staticmethod
-    def computeKeyNodirect(compilerBinary, commandLine, environment):
-        ppcmd = ["/EP"] + [arg for arg in commandLine if arg not in ("-c", "/c")]
-
-        returnCode, preprocessedSourceCode, ppStderrBinary = \
-            invokeRealCompiler(compilerBinary, ppcmd, captureOutput=True, outputAsString=False, environment=environment)
-
-        if returnCode != 0:
-            errMsg = ppStderrBinary.decode(CL_DEFAULT_CODEC) + "\nclcache: preprocessor failed"
-            raise CompilerFailedException(returnCode, errMsg)
-
-        compilerHash = getCompilerHash(compilerBinary)
-        normalizedCmdLine = CompilerArtifactsRepository._normalizedCommandLine(commandLine)
-
-        h = HashAlgorithm()
-        h.update(compilerHash.encode("UTF-8"))
-        h.update(' '.join(normalizedCmdLine).encode("UTF-8"))
-        h.update(preprocessedSourceCode)
-        return h.hexdigest()
-
-    @staticmethod
-    def _normalizedCommandLine(cmdline):
-        # Remove all arguments from the command line which only influence the
-        # preprocessor; the preprocessor's output is already included into the
-        # hash sum so we don't have to care about these switches in the
-        # command line as well.
-        argsToStrip = ("AI", "C", "E", "P", "FI", "u", "X",
-                       "FU", "D", "EP", "Fx", "U", "I")
-
-        # Also remove the switch for specifying the output file name; we don't
-        # want two invocations which are identical except for the output file
-        # name to be treated differently.
-        argsToStrip += ("Fo",)
-
-        # Also strip the switch for specifying the number of parallel compiler
-        # processes to use (when specifying multiple source files on the
-        # command line).
-        argsToStrip += ("MP",)
-
-        return [arg for arg in cmdline
-                if not (arg[0] in "/-" and arg[1:].startswith(argsToStrip))]
 
 class CacheFileStrategy:
     def __init__(self, cacheDirectory=None):
@@ -545,43 +453,6 @@ def extendCommandLineFromEnvironment(cmdLine, environment):
         cmdLine = cmdLine + splitCommandsFile(appendCmdLineString.strip())
 
     return cmdLine, remainingEnvironment
-
-
-def invokeRealCompiler(compilerBinary, cmdLine, captureOutput=False, outputAsString=True, environment=None):
-    realCmdline = [compilerBinary] + cmdLine
-    printTraceStatement("Invoking real compiler as {}".format(realCmdline))
-
-    environment = environment or os.environ
-
-    # Environment variable set by the Visual Studio IDE to make cl.exe write
-    # Unicode output to named pipes instead of stdout. Unset it to make sure
-    # we can catch stdout output.
-    environment.pop("VS_UNICODE_OUTPUT", None)
-
-    returnCode = None
-    stdout = b''
-    stderr = b''
-    if captureOutput:
-        # Don't use subprocess.communicate() here, it's slow due to internal
-        # threading.
-        with TemporaryFile() as stdoutFile, TemporaryFile() as stderrFile:
-            compilerProcess = subprocess.Popen(realCmdline, stdout=stdoutFile, stderr=stderrFile, env=environment)
-            returnCode = compilerProcess.wait()
-            stdoutFile.seek(0)
-            stdout = stdoutFile.read()
-            stderrFile.seek(0)
-            stderr = stderrFile.read()
-    else:
-        returnCode = subprocess.call(realCmdline, env=environment)
-
-    printTraceStatement("Real compiler returned code {0:d}".format(returnCode))
-
-    if outputAsString:
-        stdoutString = stdout.decode(CL_DEFAULT_CODEC)
-        stderrString = stderr.decode(CL_DEFAULT_CODEC)
-        return returnCode, stdoutString, stderrString
-
-    return returnCode, stdout, stderr
 
 # Returns the amount of jobs which should be run in parallel when
 # invoked in batch mode as determined by the /MP argument
