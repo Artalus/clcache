@@ -27,9 +27,15 @@ jobs:
     - name: unit tests
       run: pytest tests/unit/ --cov --cov-append
     - name: integration tests
-      run: pytest tests/integration/ --cov --cov-append -n auto
+      shell: cmd
+      run: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
+        pytest tests/integration/ --cov --cov-append -n auto
     - name: performance tests
-      run: pytest test/performance/ --cov --cov-append
+      shell: cmd
+      run: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
+        pytest test/performance/ --cov --cov-append
     - name: "Upload coverage to Codecov"
       uses: codecov/codecov-action@v1
       with:
