@@ -1,6 +1,13 @@
 import json
 import os
-from typing import List, NamedTuple
+from typing import (
+    Generator,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple
+)
 
 from atomicwrites import atomic_write
 
@@ -48,33 +55,33 @@ BASEDIR_REPLACEMENT = '?'
 
 
 class Manifest:
-    def __init__(self, entries: List[ManifestEntry]=None):
+    def __init__(self, entries: Optional[List[ManifestEntry]]=None):
         if entries is None:
             entries = []
         self._entries = entries.copy()
 
-    def entries(self):
+    def entries(self) -> List[ManifestEntry]:
         return self._entries
 
-    def addEntry(self, entry):
+    def addEntry(self, entry: ManifestEntry) -> None:
         """Adds entry at the top of the entries"""
         self._entries.insert(0, entry)
 
-    def touchEntry(self, objectHash):
+    def touchEntry(self, objectHash: str) -> None:
         """Moves entry in entryIndex position to the top of entries()"""
         entryIndex = next((i for i, e in enumerate(self.entries()) if e.objectHash == objectHash), 0)
         self._entries.insert(0, self._entries.pop(entryIndex))
 
 
 class ManifestSection:
-    def __init__(self, manifestSectionDir):
+    def __init__(self, manifestSectionDir: str):
         self.manifestSectionDir = manifestSectionDir
         self.lock = CacheLock.forPath(self.manifestSectionDir)
 
-    def manifestPath(self, manifestHash):
+    def manifestPath(self, manifestHash: str) -> str:
         return os.path.join(self.manifestSectionDir, manifestHash + ".json")
 
-    def manifestFiles(self):
+    def manifestFiles(self) -> Generator[str, None, None]:
         return filesBeneath(self.manifestSectionDir)
 
     def setManifest(self, manifestHash: str, manifest: Manifest) -> None:
@@ -87,7 +94,7 @@ class ManifestSection:
             jsonobject = {'entries': entries}
             json.dump(jsonobject, outFile, sort_keys=True, indent=2)
 
-    def getManifest(self, manifestHash):
+    def getManifest(self, manifestHash: str) -> Optional[Manifest]:
         fileName = self.manifestPath(manifestHash)
         if not os.path.exists(fileName):
             return None
@@ -111,17 +118,17 @@ class ManifestRepository:
     # again due to a new manifest hash and is cleaned away after some time.
     MANIFEST_FILE_FORMAT_VERSION = 6
 
-    def __init__(self, manifestsRootDir):
+    def __init__(self, manifestsRootDir: str):
         self._manifestsRootDir = manifestsRootDir
 
-    def section(self, manifestHash):
+    def section(self, manifestHash: str) -> ManifestSection:
         return ManifestSection(os.path.join(self._manifestsRootDir, manifestHash[:2]))
 
-    def sections(self):
+    def sections(self) -> Generator[ManifestSection, None, None]:
         return (ManifestSection(path) for path in childDirectories(self._manifestsRootDir))
 
-    def clean(self, maxManifestsSize):
-        manifestFileInfos = []
+    def clean(self, maxManifestsSize: int) -> int:
+        manifestFileInfos: List[Tuple[os.stat_result, str]] = []
         for section in self.sections():
             for filePath in section.manifestFiles():
                 try:
@@ -140,7 +147,7 @@ class ManifestRepository:
         return remainingObjectsSize
 
     @staticmethod
-    def getManifestHash(compilerBinary, commandLine, sourceFile):
+    def getManifestHash(compilerBinary: str, commandLine: Sequence[str], sourceFile: str) -> str:
         compilerHash = getCompilerHash(compilerBinary)
 
         # NOTE: We intentionally do not normalize command line to include
@@ -168,7 +175,7 @@ class ManifestRepository:
         return getFileHash(sourceFile, additionalData)
 
     @staticmethod
-    def getIncludesContentHashForFiles(includes):
+    def getIncludesContentHashForFiles(includes: Sequence[str]) -> str:
         try:
             listOfHashes = getFileHashes(includes)
         except FileNotFoundError:
@@ -176,11 +183,11 @@ class ManifestRepository:
         return ManifestRepository.getIncludesContentHashForHashes(listOfHashes)
 
     @staticmethod
-    def getIncludesContentHashForHashes(listOfHashes):
+    def getIncludesContentHashForHashes(listOfHashes: Sequence[str]) -> str:
         return HashAlgorithm(','.join(listOfHashes).encode()).hexdigest()
 
 
-def createManifestEntry(manifestHash, includePaths):
+def createManifestEntry(manifestHash: str, includePaths: Sequence[str]) -> ManifestEntry:
     sortedIncludePaths = sorted(set(includePaths))
     includeHashes = getFileHashes(sortedIncludePaths)
 
@@ -194,13 +201,13 @@ def createManifestEntry(manifestHash, includePaths):
 # private
 
 
-def filesBeneath(baseDir):
+def filesBeneath(baseDir: str) -> Generator[str, None, None]:
     for path, _, filenames in WALK(baseDir):
         for filename in filenames:
             yield os.path.join(path, filename)
 
 
-def collapseBasedirToPlaceholder(path):
+def collapseBasedirToPlaceholder(path: str) -> str:
     baseDir = normalizeBaseDir(os.environ.get('CLCACHE_BASEDIR'))
     if baseDir is None:
         return path
