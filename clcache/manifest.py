@@ -1,7 +1,6 @@
-from ctypes import windll, wintypes
-from collections import namedtuple
 import json
 import os
+from typing import List, NamedTuple
 
 from atomicwrites import atomic_write
 
@@ -31,7 +30,10 @@ from .utils import (
 # `includeFiles`: list of paths to include files, which this source file uses
 # `includesContentsHash`: hash of the contents of the includeFiles
 # `objectHash`: hash of the object in cache
-ManifestEntry = namedtuple('ManifestEntry', ['includeFiles', 'includesContentHash', 'objectHash'])
+class ManifestEntry(NamedTuple):
+    includeFiles: List[str]
+    includesContentHash: str
+    objectHash: str
 
 
 # TODO: not used
@@ -46,7 +48,7 @@ BASEDIR_REPLACEMENT = '?'
 
 
 class Manifest:
-    def __init__(self, entries=None):
+    def __init__(self, entries: List[ManifestEntry]=None):
         if entries is None:
             entries = []
         self._entries = entries.copy()
@@ -75,7 +77,7 @@ class ManifestSection:
     def manifestFiles(self):
         return filesBeneath(self.manifestSectionDir)
 
-    def setManifest(self, manifestHash, manifest):
+    def setManifest(self, manifestHash: str, manifest: Manifest) -> None:
         manifestPath = self.manifestPath(manifestHash)
         printTraceStatement("Writing manifest with manifestHash = {} to {}".format(manifestHash, manifestPath))
         ensureDirectoryExists(self.manifestSectionDir)
