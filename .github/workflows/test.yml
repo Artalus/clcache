@@ -35,7 +35,7 @@ jobs:
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
-        pytest test/performance/ --cov --cov-append
+        pytest tests/performance/ --cov --cov-append
     - name: "Upload coverage to Codecov"
       uses: codecov/codecov-action@v1
       with:
