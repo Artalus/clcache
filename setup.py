@@ -20,11 +20,16 @@ setup(
         'pymemcache',
         'pyuv',
     ],
+    extras_require={
+        'installer': [
+            'pyinstaller',
+        ],
+    },
     entry_points={
-          'console_scripts': [
-              'clcache = clcache.__main__:mainWrapper',
-              'clcache-server = clcache.server.__main__:main',
-          ]
+        'console_scripts': [
+            'clcache = clcache.__main__:mainWrapper',
+            'clcache-server = clcache.server.__main__:main',
+        ]
     },
     setup_requires=[
         'setuptools_scm',
