@@ -1,0 +1,51 @@
+name: pyinstaller
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  pyinstaller:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - uses: actions/cache@v2
+      if: startsWith(runner.os, 'Windows')
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install dependencies
+      run: |
+        pip install wheel
+        pip install -e .[installer]
+    - id: CLCACHE_VERSION
+      name: Get CLCache version from python
+      shell: bash
+      run: |
+        python3 <<EOF
+        from clcache import VERSION
+        print(f"::set-output name=V::{VERSION}")
+        EOF
+    - name: PyInstaller
+      shell: bash
+      run: |
+        pyinstaller pyinstaller/clcache_main.py
+        mv  dist/clcache_main/clcache_main.exe  dist/clcache_main/clcache.exe
+        mv  dist/clcache_main  clcache-${{steps.CLCACHE_VERSION.outputs.V}}
+    - name: Test the compiled extension
+      shell: bash
+      run: |
+        cd clcache-${{steps.CLCACHE_VERSION.outputs.V}}
+        clcache.exe --help
+        clcache.exe -s
+    - uses: actions/upload-artifact@v2
+      with:
+        name: clcache-${{steps.CLCACHE_VERSION.outputs.V}}
+        path: clcache-${{steps.CLCACHE_VERSION.outputs.V}}
+    # TODO: add chocolatey packaging
