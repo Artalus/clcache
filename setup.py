@@ -24,6 +24,11 @@ setup(
         'installer': [
             'pyinstaller',
         ],
+        'test': [
+            'pytest',
+            'pytest-cov',
+            'pytest-xdist',
+        ],
     },
     entry_points={
         'console_scripts': [
