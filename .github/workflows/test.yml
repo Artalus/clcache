@@ -25,17 +25,17 @@ jobs:
         pip install wheel
         pip install -e .[test]
     - name: unit tests
-      run: pytest tests/unit/ --cov --cov-append
+      run: pytest tests/unit/ --cov --cov-report=xml --cov-append
     - name: integration tests
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
-        pytest tests/integration/ --cov --cov-append -n auto
+        pytest tests/integration/ --cov --cov-report=xml --cov-append -n auto
     - name: performance tests
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
-        pytest tests/performance/ --cov --cov-append
+        pytest tests/performance/ --cov --cov-report=xml --cov-append
     - name: "Upload coverage to Codecov"
       uses: codecov/codecov-action@v2
       with:
