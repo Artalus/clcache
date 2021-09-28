@@ -224,7 +224,7 @@ def findCompilerBinary() -> Optional[str]:
     if "CLCACHE_CL" in os.environ:
         path = os.environ["CLCACHE_CL"]
         if os.path.basename(path) == path:
-            path = which(path)
+            path = which(path) or ""
 
         return path if os.path.exists(path) else None
 
