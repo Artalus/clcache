@@ -29,7 +29,7 @@ def childDirectories(path: str, absolute: bool=True) -> Generator[str, None, Non
                 yield absPath if absolute else entry
 
 
-def normalizeBaseDir(baseDir: str) -> Optional[str]:
+def normalizeBaseDir(baseDir: Optional[str]) -> Optional[str]:
     if baseDir:
         baseDir = os.path.normcase(baseDir)
         if baseDir.endswith(os.path.sep):
