@@ -431,7 +431,10 @@ def processSingleSource(compiler: str, cmdLine: List[str], sourceFile: str, obje
             return processDirect(cache, objectFile, compiler, cmdLine, sourceFile)
 
     except IncludeNotFoundException:
-        return invokeRealCompiler(compiler, cmdLine, environment=environment), False
+        rc, o, e = invokeRealCompiler(compiler, cmdLine, environment=environment)
+        assert isinstance(o, str)
+        assert isinstance(e, str)
+        return rc, o, e, False
     except CompilerFailedException as e:
         return e.getReturnTuple()
 
@@ -473,10 +476,13 @@ def processDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[st
             cmdLine = list(cmdLine)
             cmdLine.insert(0, '/showIncludes')
             stripIncludes = True
-    compilerResult = invokeRealCompiler(compiler, cmdLine, captureOutput=True)
+    rc, o, e = invokeRealCompiler(compiler, cmdLine, captureOutput=True)
+    assert isinstance(o, str)
+    assert isinstance(e, str)
+    compilerResult = (rc, o, e)
     if manifestHit is None:
-        includePaths, compilerOutput = parseIncludesSet(compilerResult[1], sourceFile, stripIncludes)
-        compilerResult = (compilerResult[0], compilerOutput, compilerResult[2])
+        includePaths, compilerOutput = parseIncludesSet(o, sourceFile, stripIncludes)
+        compilerResult = (rc, compilerOutput, e)
 
     with cache.manifestLockFor(manifestHash):
         if manifestHit is not None:
@@ -501,10 +507,12 @@ def processNoDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[
         if cache.hasEntry(cachekey):
             return processCacheHit(cache, objectFile, cachekey)
 
-    compilerResult = invokeRealCompiler(compiler, cmdLine, captureOutput=True, environment=environment)
+    rc, o, e = invokeRealCompiler(compiler, cmdLine, captureOutput=True, environment=environment)
+    assert isinstance(o, str)
+    assert isinstance(e, str)
 
     return ensureArtifactsExist(cache, cachekey, Statistics.registerCacheMiss,
-                                objectFile, compilerResult)
+                                objectFile, (rc, o, e))
 
 
 def ensureArtifactsExist(cache: Cache,

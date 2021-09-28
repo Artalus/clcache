@@ -140,6 +140,8 @@ class CompilerArtifactsRepository:
 
         returnCode, preprocessedSourceCode, ppStderrBinary = \
             invokeRealCompiler(compilerBinary, ppcmd, captureOutput=True, outputAsString=False, environment=environment)
+        assert isinstance(preprocessedSourceCode, bytes)
+        assert isinstance(ppStderrBinary, bytes)
 
         if returnCode != 0:
             errMsg = ppStderrBinary.decode(CL_DEFAULT_CODEC) + "\nclcache: preprocessor failed"

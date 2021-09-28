@@ -33,10 +33,9 @@ class Argument:
         return "/" + self.name
 
     def __eq__(self, other: object) -> bool:
-        # TODO: ensure this works and uncomment
-        # if not isinstance(other, Argument):
-        #     return NotImplemented
-        return type(self) == type(other) and self.name == other.name
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.name == other.name
 
     def __hash__(self) -> int:
         key = (type(self), self.name)
