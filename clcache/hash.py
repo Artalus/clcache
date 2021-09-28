@@ -3,7 +3,7 @@ import hashlib
 import errno
 import os
 import pickle
-from typing import Dict
+from typing import Dict, List, Optional
 
 from . import VERSION
 
@@ -15,7 +15,7 @@ ERROR_PIPE_BUSY = 231
 
 
 knownHashes: Dict[str, str] = dict()
-def getFileHashCached(filePath):
+def getFileHashCached(filePath: str) -> str:
     if filePath in knownHashes:
         return knownHashes[filePath]
     c = getFileHash(filePath)
@@ -23,7 +23,7 @@ def getFileHashCached(filePath):
     return c
 
 
-def getFileHash(filePath, additionalData=None):
+def getFileHash(filePath: str, additionalData: Optional[str]=None) -> str:
     hasher = HashAlgorithm()
     with open(filePath, 'rb') as inFile:
         hasher.update(inFile.read())
@@ -35,7 +35,7 @@ def getFileHash(filePath, additionalData=None):
     return hasher.hexdigest()
 
 
-def getCompilerHash(compilerBinary):
+def getCompilerHash(compilerBinary: str) -> str:
     stat = os.stat(compilerBinary)
     data = '|'.join([
         str(stat.st_mtime),
@@ -47,12 +47,12 @@ def getCompilerHash(compilerBinary):
     return hasher.hexdigest()
 
 
-def getStringHash(dataString):
+def getStringHash(dataString: str) -> str:
     hasher = HashAlgorithm()
     hasher.update(dataString.encode("UTF-8"))
     return hasher.hexdigest()
 
-def getFileHashes(filePaths):
+def getFileHashes(filePaths: List[str]) -> List[str]:
     if 'CLCACHE_SERVER' in os.environ:
         pipeName = r'\\.\pipe\clcache_srv_{}'.format(os.environ.get('CLCACHE_SERVER'))
         while True:
