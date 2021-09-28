@@ -1,4 +1,7 @@
 
+from typing import Tuple
+
+
 class IncludeNotFoundException(Exception):
     pass
 
@@ -8,22 +11,22 @@ class CacheLockException(Exception):
 
 
 class CompilerFailedException(Exception):
-    def __init__(self, exitCode, msgErr, msgOut=""):
+    def __init__(self, exitCode: int, msgErr: str, msgOut: str=""):
         super(CompilerFailedException, self).__init__(msgErr)
         self.exitCode = exitCode
         self.msgOut = msgOut
         self.msgErr = msgErr
 
-    def getReturnTuple(self):
+    def getReturnTuple(self) -> Tuple[int, str, str, bool]:
         return self.exitCode, self.msgErr, self.msgOut, False
 
 
 class LogicException(Exception):
-    def __init__(self, message):
+    def __init__(self, message: str):
         super(LogicException, self).__init__(message)
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self.message)
 
 
@@ -61,5 +64,5 @@ class InvalidArgumentError(AnalysisError):
 
 
 class ProfilerError(Exception):
-    def __init__(self, returnCode):
+    def __init__(self, returnCode: int):
         self.returnCode = returnCode
