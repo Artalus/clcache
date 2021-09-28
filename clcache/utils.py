@@ -3,11 +3,12 @@ import os
 import errno
 import gzip
 from shutil import copyfile, copyfileobj
+from typing import Generator, Optional
 
 from clcache import LIST
 
 
-def ensureDirectoryExists(path):
+def ensureDirectoryExists(path: str) -> None:
     try:
         os.makedirs(path)
     except OSError as e:
@@ -16,7 +17,7 @@ def ensureDirectoryExists(path):
 
 
 
-def childDirectories(path, absolute=True):
+def childDirectories(path: str, absolute: bool=True) -> Generator[str, None, None]:
     supportsScandir = (LIST != os.listdir) # pylint: disable=comparison-with-callable
     for entry in LIST(path):
         if supportsScandir:
@@ -28,7 +29,7 @@ def childDirectories(path, absolute=True):
                 yield absPath if absolute else entry
 
 
-def normalizeBaseDir(baseDir):
+def normalizeBaseDir(baseDir: str) -> Optional[str]:
     if baseDir:
         baseDir = os.path.normcase(baseDir)
         if baseDir.endswith(os.path.sep):
@@ -39,7 +40,7 @@ def normalizeBaseDir(baseDir):
         return None
 
 
-def copyOrLink(srcFilePath, dstFilePath, writeCache=False):
+def copyOrLink(srcFilePath: str, dstFilePath: str, writeCache: bool=False) -> None:
     ensureDirectoryExists(os.path.dirname(os.path.abspath(dstFilePath)))
 
     if "CLCACHE_HARDLINK" in os.environ:
