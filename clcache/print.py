@@ -1,10 +1,11 @@
 import os
 import sys
 import threading
+from typing import TextIO
 
 OUTPUT_LOCK = threading.Lock()
 
-def printBinary(stream, rawData):
+def printBinary(stream: TextIO, rawData: bytes) -> None:
     with OUTPUT_LOCK:
         stream.buffer.write(rawData)
         stream.flush()
@@ -16,6 +17,6 @@ def printTraceStatement(msg: str) -> None:
             print(os.path.join(scriptDir, "clcache.py") + " " + msg)
 
 
-def printErrStr(message):
+def printErrStr(message: str) -> None:
     with OUTPUT_LOCK:
         print(message, file=sys.stderr)
