@@ -7,6 +7,7 @@ from shutil import (
 import subprocess
 import sys
 from tempfile import TemporaryFile
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 from .errors import CompilerFailedException
 from .hash import (
@@ -41,23 +42,23 @@ class CompilerArtifactsSection:
     STDOUT_FILE = 'output.txt'
     STDERR_FILE = 'stderr.txt'
 
-    def __init__(self, compilerArtifactsSectionDir):
+    def __init__(self, compilerArtifactsSectionDir: str):
         self.compilerArtifactsSectionDir = compilerArtifactsSectionDir
         self.lock = CacheLock.forPath(self.compilerArtifactsSectionDir)
 
-    def cacheEntryDir(self, key):
+    def cacheEntryDir(self, key: str) -> str:
         return os.path.join(self.compilerArtifactsSectionDir, key)
 
-    def cacheEntries(self):
+    def cacheEntries(self) -> Generator[str, None, None]:
         return childDirectories(self.compilerArtifactsSectionDir, absolute=False)
 
-    def cachedObjectName(self, key):
+    def cachedObjectName(self, key: str) -> str:
         return os.path.join(self.cacheEntryDir(key), CompilerArtifactsSection.OBJECT_FILE)
 
-    def hasEntry(self, key):
+    def hasEntry(self, key: str) -> bool:
         return os.path.exists(self.cacheEntryDir(key))
 
-    def setEntry(self, key, artifacts):
+    def setEntry(self, key: str, artifacts: CompilerArtifacts) -> int:
         cacheEntryDir = self.cacheEntryDir(key)
         # Write new files to a temporary directory
         tempEntryDir = cacheEntryDir + '.new'
@@ -77,7 +78,7 @@ class CompilerArtifactsSection:
         os.replace(tempEntryDir, cacheEntryDir)
         return size
 
-    def getEntry(self, key):
+    def getEntry(self, key: str) -> CompilerArtifacts:
         assert self.hasEntry(key)
         cacheEntryDir = self.cacheEntryDir(key)
         return CompilerArtifacts(
@@ -88,20 +89,20 @@ class CompilerArtifactsSection:
 
 
 class CompilerArtifactsRepository:
-    def __init__(self, compilerArtifactsRootDir):
+    def __init__(self, compilerArtifactsRootDir: str):
         self._compilerArtifactsRootDir = compilerArtifactsRootDir
 
-    def section(self, key):
+    def section(self, key: str) -> CompilerArtifactsSection:
         return CompilerArtifactsSection(os.path.join(self._compilerArtifactsRootDir, key[:2]))
 
-    def sections(self):
+    def sections(self) -> Generator[CompilerArtifactsSection, None, None]:
         return (CompilerArtifactsSection(path) for path in childDirectories(self._compilerArtifactsRootDir))
 
-    def removeEntry(self, keyToBeRemoved):
+    def removeEntry(self, keyToBeRemoved: str) -> None:
         compilerArtifactsDir = self.section(keyToBeRemoved).cacheEntryDir(keyToBeRemoved)
         rmtree(compilerArtifactsDir, ignore_errors=True)
 
-    def clean(self, maxCompilerArtifactsSize):
+    def clean(self, maxCompilerArtifactsSize: int) -> Tuple[int, int]:
         objectInfos = []
         for section in self.sections():
             for cachekey in section.cacheEntries():
@@ -127,14 +128,14 @@ class CompilerArtifactsRepository:
         return len(objectInfos)-removedItems, currentSizeObjects
 
     @staticmethod
-    def computeKeyDirect(manifestHash, includesContentHash):
+    def computeKeyDirect(manifestHash: str, includesContentHash: str) -> str:
         # We must take into account manifestHash to avoid
         # collisions when different source files use the same
         # set of includes.
         return getStringHash(manifestHash + includesContentHash)
 
     @staticmethod
-    def computeKeyNodirect(compilerBinary, commandLine, environment):
+    def computeKeyNodirect(compilerBinary: str, commandLine: List[str], environment: Dict[str, str]) -> str:
         ppcmd = ["/EP"] + [arg for arg in commandLine if arg not in ("-c", "/c")]
 
         returnCode, preprocessedSourceCode, ppStderrBinary = \
@@ -154,13 +155,13 @@ class CompilerArtifactsRepository:
         return h.hexdigest()
 
     @staticmethod
-    def _normalizedCommandLine(cmdline):
+    def _normalizedCommandLine(cmdline: List[str]) -> List[str]:
         # Remove all arguments from the command line which only influence the
         # preprocessor; the preprocessor's output is already included into the
         # hash sum so we don't have to care about these switches in the
         # command line as well.
-        argsToStrip = ("AI", "C", "E", "P", "FI", "u", "X",
-                       "FU", "D", "EP", "Fx", "U", "I")
+        argsToStrip: Tuple[str, ...] = \
+            ("AI", "C", "E", "P", "FI", "u", "X", "FU", "D", "EP", "Fx", "U", "I")
 
         # Also remove the switch for specifying the output file name; we don't
         # want two invocations which are identical except for the output file
@@ -175,12 +176,16 @@ class CompilerArtifactsRepository:
         return [arg for arg in cmdline
                 if not (arg[0] in "/-" and arg[1:].startswith(argsToStrip))]
 
-
-def invokeRealCompiler(compilerBinary, cmdLine, captureOutput=False, outputAsString=True, environment=None):
+# TODO: should use more distinct type overloads
+def invokeRealCompiler(compilerBinary: str, cmdLine: List[str],
+        captureOutput: bool=False, outputAsString: bool=True,
+        environment: Optional[Dict[str, str]]=None) \
+        -> Tuple[int, Union[str, bytes], Union[str, bytes]]:
     realCmdline = [compilerBinary] + cmdLine
     printTraceStatement("Invoking real compiler as {}".format(realCmdline))
 
-    environment = environment or os.environ
+    environment = environment or os.environ # type: ignore # TODO: Dict vs _Environ mismatch
+    assert environment
 
     # Environment variable set by the Visual Studio IDE to make cl.exe write
     # Unicode output to named pipes instead of stdout. Unset it to make sure
@@ -213,7 +218,7 @@ def invokeRealCompiler(compilerBinary, cmdLine, captureOutput=False, outputAsStr
     return returnCode, stdout, stderr
 
 
-def findCompilerBinary():
+def findCompilerBinary() -> Optional[str]:
     if "CLCACHE_CL" in os.environ:
         path = os.environ["CLCACHE_CL"]
         if os.path.basename(path) == path:
@@ -238,7 +243,7 @@ def findCompilerBinary():
 # private
 
 
-def getCachedCompilerConsoleOutput(path):
+def getCachedCompilerConsoleOutput(path: str) -> str:
     try:
         with open(path, 'rb') as f:
             return f.read().decode(CACHE_COMPILER_OUTPUT_STORAGE_CODEC)
@@ -246,11 +251,11 @@ def getCachedCompilerConsoleOutput(path):
         return ''
 
 
-def setCachedCompilerConsoleOutput(path, output):
+def setCachedCompilerConsoleOutput(path: str, output: str) -> None:
     with open(path, 'wb') as f:
         f.write(output.encode(CACHE_COMPILER_OUTPUT_STORAGE_CODEC))
 
 
-def myExecutablePath():
+def myExecutablePath() -> str:
     assert hasattr(sys, "frozen"), "is not frozen by py2exe"
     return sys.executable.upper()
