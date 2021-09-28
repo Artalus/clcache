@@ -11,7 +11,7 @@ import contextlib
 import os
 import re
 import sys
-from typing import ContextManager, List, Tuple, Iterator, Dict, Optional, Generator, Union, Set, Callable
+from typing import ContextManager, List, Tuple, Iterator, Dict, Optional, Generator, TypeVar, Union, Set, Callable
 
 from .errors import *
 from .print import *
@@ -24,7 +24,8 @@ from .hash import *
 from .manifest import *
 from .compiler import *
 
-AnyRepo = Union[CompilerArtifactsRepository, ManifestRepository]
+AnyRepo = TypeVar('AnyRepo', CompilerArtifactsRepository, ManifestRepository)
+AnySection = TypeVar('AnySection', CompilerArtifactsSection, ManifestSection)
 StringLike = Union[str, bytes]
 CompilerTuple = Tuple[int, str, str, bool]
 StatisticsUpdate = Callable[[Statistics], None]
