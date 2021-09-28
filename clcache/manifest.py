@@ -127,7 +127,7 @@ class ManifestRepository:
     def sections(self) -> Generator[ManifestSection, None, None]:
         return (ManifestSection(path) for path in childDirectories(self._manifestsRootDir))
 
-    def clean(self, maxManifestsSize: int) -> int:
+    def clean(self, maxManifestsSize: float) -> int:
         manifestFileInfos: List[Tuple[os.stat_result, str]] = []
         for section in self.sections():
             for filePath in section.manifestFiles():
