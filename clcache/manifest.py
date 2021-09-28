@@ -2,10 +2,10 @@ import json
 import os
 from typing import (
     Generator,
+    Iterable,
     List,
     NamedTuple,
     Optional,
-    Sequence,
     Tuple
 )
 
@@ -183,11 +183,11 @@ class ManifestRepository:
         return ManifestRepository.getIncludesContentHashForHashes(listOfHashes)
 
     @staticmethod
-    def getIncludesContentHashForHashes(listOfHashes: Sequence[str]) -> str:
+    def getIncludesContentHashForHashes(listOfHashes: Iterable[str]) -> str:
         return HashAlgorithm(','.join(listOfHashes).encode()).hexdigest()
 
 
-def createManifestEntry(manifestHash: str, includePaths: Sequence[str]) -> ManifestEntry:
+def createManifestEntry(manifestHash: str, includePaths: Iterable[str]) -> ManifestEntry:
     sortedIncludePaths = sorted(set(includePaths))
     includeHashes = getFileHashes(sortedIncludePaths)
 
