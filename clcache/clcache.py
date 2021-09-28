@@ -11,7 +11,7 @@ import contextlib
 import os
 import re
 import sys
-from typing import Any, List, Tuple, Iterator, Dict
+from typing import ContextManager, List, Tuple, Iterator, Dict, Optional, Generator, Union, Set, Callable
 
 from .errors import *
 from .print import *
@@ -24,9 +24,13 @@ from .hash import *
 from .manifest import *
 from .compiler import *
 
+AnyRepo = Union[CompilerArtifactsRepository, ManifestRepository]
+StringLike = Union[str, bytes]
+CompilerTuple = Tuple[int, str, str, bool]
+StatisticsUpdate = Callable[[Statistics], None]
 
 @contextlib.contextmanager
-def allSectionsLocked(repository):
+def allSectionsLocked(repository: AnyRepo) -> Generator[None, None, None]:
     sections = list(repository.sections())
     for section in sections:
         section.lock.acquire()
@@ -37,7 +41,7 @@ def allSectionsLocked(repository):
             section.lock.release()
 
 class CacheFileStrategy:
-    def __init__(self, cacheDirectory=None):
+    def __init__(self, cacheDirectory: Optional[str]=None):
         self.dir = cacheDirectory
         if not self.dir:
             try:
@@ -56,53 +60,53 @@ class CacheFileStrategy:
         self.configuration = Configuration(os.path.join(self.dir, "config.txt"))
         self.statistics = Statistics(os.path.join(self.dir, "stats.txt"))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Disk cache at {}".format(self.dir)
 
     @property # type: ignore
     @contextlib.contextmanager
-    def lock(self):
+    def lock(self) -> Generator[None, None, None]:
         with allSectionsLocked(self.manifestRepository), \
              allSectionsLocked(self.compilerArtifactsRepository), \
              self.statistics.lock:
             yield
 
-    def lockFor(self, key):
+    def lockFor(self, key: str) -> CacheLock:
         assert isinstance(self.compilerArtifactsRepository.section(key).lock, CacheLock)
         return self.compilerArtifactsRepository.section(key).lock
 
-    def manifestLockFor(self, key):
+    def manifestLockFor(self, key: str) -> CacheLock:
         return self.manifestRepository.section(key).lock
 
-    def getEntry(self, key):
+    def getEntry(self, key: str) -> CompilerArtifacts:
         return self.compilerArtifactsRepository.section(key).getEntry(key)
 
-    def setEntry(self, key, value):
+    def setEntry(self, key: str, value: CompilerArtifacts) -> int:
         return self.compilerArtifactsRepository.section(key).setEntry(key, value)
 
-    def pathForObject(self, key):
+    def pathForObject(self, key: str) -> str:
         return self.compilerArtifactsRepository.section(key).cachedObjectName(key)
 
-    def directoryForCache(self, key):
+    def directoryForCache(self, key: str) -> str:
         return self.compilerArtifactsRepository.section(key).cacheEntryDir(key)
 
-    def deserializeCacheEntry(self, key, objectData):
+    def deserializeCacheEntry(self, key: str, objectData: bytes) -> str:
         path = self.pathForObject(key)
         ensureDirectoryExists(self.directoryForCache(key))
         with open(path, 'wb') as f:
             f.write(objectData)
         return path
 
-    def hasEntry(self, cachekey):
+    def hasEntry(self, cachekey: str) -> bool:
         return self.compilerArtifactsRepository.section(cachekey).hasEntry(cachekey)
 
-    def setManifest(self, manifestHash, manifest):
+    def setManifest(self, manifestHash: str, manifest: Manifest) -> None:
         self.manifestRepository.section(manifestHash).setManifest(manifestHash, manifest)
 
-    def getManifest(self, manifestHash):
+    def getManifest(self, manifestHash: str) -> Optional[Manifest]:
         return self.manifestRepository.section(manifestHash).getManifest(manifestHash)
 
-    def clean(self, stats, maximumSize):
+    def clean(self, stats: Statistics, maximumSize: int) -> None:
         currentSize = stats.currentCacheSize()
         if currentSize < maximumSize:
             return
@@ -127,7 +131,9 @@ class CacheFileStrategy:
 
 
 class Cache:
-    def __init__(self, cacheDirectory=None):
+    # TODO: make abstract class
+    strategy: CacheFileStrategy
+    def __init__(self, cacheDirectory: Optional[str]=None):
         if os.environ.get("CLCACHE_MEMCACHED"):
             from .storage import CacheFileWithMemcacheFallbackStrategy
             self.strategy = CacheFileWithMemcacheFallbackStrategy(os.environ.get("CLCACHE_MEMCACHED"),
@@ -135,51 +141,52 @@ class Cache:
         else:
             self.strategy = CacheFileStrategy(cacheDirectory=cacheDirectory)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.strategy)
 
+    # TODO: proper lock generator type
     @property
-    def lock(self):
+    def lock(self) -> ContextManager[None]:
         return self.strategy.lock
 
     @contextlib.contextmanager
-    def manifestLockFor(self, key):
+    def manifestLockFor(self, key: str) -> Generator[None, None, None]:
         with self.strategy.manifestLockFor(key):
             yield
 
     @property
-    def configuration(self):
+    def configuration(self) -> Configuration:
         return self.strategy.configuration
 
     @property
-    def statistics(self):
+    def statistics(self) -> Statistics:
         return self.strategy.statistics
 
-    def clean(self, stats, maximumSize):
+    def clean(self, stats: Statistics, maximumSize: int) -> None:
         return self.strategy.clean(stats, maximumSize)
 
     @contextlib.contextmanager
-    def lockFor(self, key):
+    def lockFor(self, key: str) -> Generator[None, None, None]:
         with self.strategy.lockFor(key):
             yield
 
-    def getEntry(self, key):
+    def getEntry(self, key: str) -> CompilerArtifacts:
         return self.strategy.getEntry(key)
 
-    def setEntry(self, key, value):
+    def setEntry(self, key: str, value: CompilerArtifacts) -> int:
         return self.strategy.setEntry(key, value)
 
-    def hasEntry(self, cachekey):
+    def hasEntry(self, cachekey: str) -> bool:
         return self.strategy.hasEntry(cachekey)
 
-    def setManifest(self, manifestHash, manifest):
+    def setManifest(self, manifestHash: str, manifest: Manifest) -> None:
         self.strategy.setManifest(manifestHash, manifest)
 
-    def getManifest(self, manifestHash):
+    def getManifest(self, manifestHash: str) -> Optional[Manifest]:
         return self.strategy.getManifest(manifestHash)
 
 
-def expandBasedirPlaceholder(path):
+def expandBasedirPlaceholder(path: str) -> str:
     baseDir = normalizeBaseDir(os.environ.get('CLCACHE_BASEDIR'))
     if path.startswith(BASEDIR_REPLACEMENT):
         if not baseDir:
@@ -189,7 +196,7 @@ def expandBasedirPlaceholder(path):
         return path
 
 
-def printStatistics(cache):
+def printStatistics(cache: Cache) -> None:
     template = """
 clcache statistics:
   current cache dir         : {}
@@ -232,17 +239,17 @@ clcache statistics:
         ))
 
 
-def resetStatistics(cache):
+def resetStatistics(cache: Cache) -> None:
     with cache.statistics.lock, cache.statistics as stats:
         stats.resetCounters()
 
 
-def cleanCache(cache):
+def cleanCache(cache: Cache) -> None:
     with cache.lock, cache.statistics as stats, cache.configuration as cfg:
         cache.clean(stats, cfg.maximumCacheSize())
 
 
-def clearCache(cache):
+def clearCache(cache: Cache) -> None:
     with cache.lock, cache.statistics as stats:
         cache.clean(stats, 0)
 
@@ -252,7 +259,7 @@ def clearCache(cache):
 #   2. new compiler output
 # Output changes if strip is True in that case all lines with include
 # directives are stripped from it
-def parseIncludesSet(compilerOutput, sourceFile, strip):
+def parseIncludesSet(compilerOutput: str, sourceFile: str, strip: bool) -> Tuple[Set[str], str]:
     newOutput = []
     includesSet = set()
 
@@ -286,7 +293,7 @@ def parseIncludesSet(compilerOutput, sourceFile, strip):
         return includesSet, compilerOutput
 
 
-def addObjectToCache(stats, cache, cachekey, artifacts):
+def addObjectToCache(stats: Statistics, cache: Cache, cachekey: str, artifacts: CompilerArtifacts) -> bool:
     # This function asserts that the caller locked 'section' and 'stats'
     # already and also saves them
     printTraceStatement("Adding file {} to cache using key {}".format(artifacts.objectFilePath, cachekey))
@@ -300,7 +307,7 @@ def addObjectToCache(stats, cache, cachekey, artifacts):
         return stats.currentCacheSize() >= cfg.maximumCacheSize()
 
 
-def processCacheHit(cache, objectFile, cachekey):
+def processCacheHit(cache: Cache, objectFile: str, cachekey: str) -> CompilerTuple:
     printTraceStatement("Reusing cached object for key {} for object file {}".format(cachekey, objectFile))
 
     with cache.lockFor(cachekey):
@@ -316,15 +323,15 @@ def processCacheHit(cache, objectFile, cachekey):
         return 0, cachedArtifacts.stdout, cachedArtifacts.stderr, False
 
 
-def updateCacheStatistics(cache, method):
+def updateCacheStatistics(cache: Cache, method: StatisticsUpdate) -> None:
     with cache.statistics.lock, cache.statistics as stats:
         method(stats)
 
-def printOutAndErr(out, err):
+def printOutAndErr(out: str, err: str) -> None:
     printBinary(sys.stdout, out.encode(CL_DEFAULT_CODEC))
     printBinary(sys.stderr, err.encode(CL_DEFAULT_CODEC))
 
-def processCompileRequest(cache, compiler, args):
+def processCompileRequest(cache: Cache, compiler: str, args: List[str]) -> int:
     printTraceStatement("Parsing given commandline '{0!s}'".format(args))
 
     cmdLine, environment = extendCommandLineFromEnvironment(args, os.environ)
@@ -359,6 +366,8 @@ def processCompileRequest(cache, compiler, args):
         updateCacheStatistics(cache, Statistics.registerCallForPreprocessing)
 
     exitCode, out, err = invokeRealCompiler(compiler, args)
+    assert isinstance(out, str)
+    assert isinstance(err, str)
     printOutAndErr(out, err)
     return exitCode
 
@@ -370,7 +379,7 @@ def filterSourceFiles(cmdLine: List[str], sourceFiles: List[Tuple[str, str]]) ->
         if not (arg in setOfSources or arg.startswith(skippedArgs))
     )
 
-def scheduleJobs(cache: Any, compiler: str, cmdLine: List[str], environment: Any,
+def scheduleJobs(cache: Cache, compiler: str, cmdLine: List[str], environment: Dict[str, str],
                  sourceFiles: List[Tuple[str, str]], objectFiles: List[str]) -> int:
     # Filter out all source files from the command line to form baseCmdLine
     baseCmdLine = [arg for arg in filterSourceFiles(cmdLine, sourceFiles) if not arg.startswith('/MP')]
@@ -410,7 +419,7 @@ def scheduleJobs(cache: Any, compiler: str, cmdLine: List[str], environment: Any
 
     return exitCode
 
-def processSingleSource(compiler, cmdLine, sourceFile, objectFile, environment):
+def processSingleSource(compiler: str, cmdLine: List[str], sourceFile: str, objectFile: str, environment: Dict[str, str]) -> CompilerTuple:
     try:
         assert objectFile is not None
         cache = Cache()
@@ -425,7 +434,7 @@ def processSingleSource(compiler, cmdLine, sourceFile, objectFile, environment):
     except CompilerFailedException as e:
         return e.getReturnTuple()
 
-def processDirect(cache, objectFile, compiler, cmdLine, sourceFile):
+def processDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[str], sourceFile: str) -> CompilerTuple:
     manifestHash = ManifestRepository.getManifestHash(compiler, cmdLine, sourceFile)
     manifestHit = None
     with cache.manifestLockFor(manifestHash):
@@ -476,7 +485,7 @@ def processDirect(cache, objectFile, compiler, cmdLine, sourceFile):
         entry = createManifestEntry(manifestHash, includePaths)
         cachekey = entry.objectHash
 
-        def addManifest():
+        def addManifest() -> None:
             manifest = cache.getManifest(manifestHash) or Manifest()
             manifest.addEntry(entry)
             cache.setManifest(manifestHash, manifest)
@@ -485,7 +494,7 @@ def processDirect(cache, objectFile, compiler, cmdLine, sourceFile):
                                     objectFile, compilerResult, addManifest)
 
 
-def processNoDirect(cache, objectFile, compiler, cmdLine, environment):
+def processNoDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[str], environment: Dict[str, str]) -> CompilerTuple:
     cachekey = CompilerArtifactsRepository.computeKeyNodirect(compiler, cmdLine, environment)
     with cache.lockFor(cachekey):
         if cache.hasEntry(cachekey):
@@ -497,7 +506,13 @@ def processNoDirect(cache, objectFile, compiler, cmdLine, environment):
                                 objectFile, compilerResult)
 
 
-def ensureArtifactsExist(cache, cachekey, reason, objectFile, compilerResult, extraCallable=None):
+def ensureArtifactsExist(cache: Cache,
+        cachekey: str,
+        reason: StatisticsUpdate,
+        objectFile: str,
+        compilerResult: Tuple[int, str, str],
+        extraCallable: Optional[Callable[[],None]]=None) \
+        -> CompilerTuple:
     cleanupRequired = False
     returnCode, compilerOutput, compilerStderr = compilerResult
     correctCompiliation = (returnCode == 0 and os.path.exists(objectFile))
