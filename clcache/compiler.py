@@ -102,7 +102,7 @@ class CompilerArtifactsRepository:
         compilerArtifactsDir = self.section(keyToBeRemoved).cacheEntryDir(keyToBeRemoved)
         rmtree(compilerArtifactsDir, ignore_errors=True)
 
-    def clean(self, maxCompilerArtifactsSize: int) -> Tuple[int, int]:
+    def clean(self, maxCompilerArtifactsSize: float) -> Tuple[int, int]:
         objectInfos = []
         for section in self.sections():
             for cachekey in section.cacheEntries():
