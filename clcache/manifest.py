@@ -1,6 +1,7 @@
 import json
 import os
 from typing import (
+    Callable,
     Generator,
     Iterable,
     List,
@@ -158,7 +159,7 @@ class ManifestRepository:
         # the compiler where to find the source files are parsed to replace
         # ocurrences of CLCACHE_BASEDIR by a placeholder.
         arguments, inputFiles = CommandLineAnalyzer.parseArgumentsAndInputFiles(commandLine)
-        collapseBasedirInCmdPath = lambda path: collapseBasedirToPlaceholder(os.path.normcase(os.path.abspath(path)))
+        collapseBasedirInCmdPath: Callable[[str], str] = lambda path: collapseBasedirToPlaceholder(os.path.normcase(os.path.abspath(path)))
 
         commandLine = []
         argumentsWithPaths = ("AI", "I", "FU")
