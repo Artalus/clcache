@@ -3,7 +3,7 @@ from collections import defaultdict
 import multiprocessing
 import os
 import re
-from typing import Tuple, List
+from typing import Callable, Dict, Optional, Set, Tuple, List, Any
 
 from .errors import (
     NoSourceFileError,
@@ -17,25 +17,28 @@ from .errors import (
 from .print import printTraceStatement
 
 
-def basenameWithoutExtension(path):
+def basenameWithoutExtension(path: str) -> str:
     basename = os.path.basename(path)
     return os.path.splitext(basename)[0]
 
 
 class Argument:
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.name)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "/" + self.name
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        # TODO: ensure this works and uncomment
+        # if not isinstance(other, Argument):
+        #     return NotImplemented
         return type(self) == type(other) and self.name == other.name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         key = (type(self), self.name)
         return hash(key)
 
@@ -61,7 +64,7 @@ class ArgumentT4(Argument):
 
 
 class CommandLineAnalyzer:
-    argumentsWithParameter = {
+    argumentsWithParameter: Set[Argument] = {
         # /NAMEparameter
         ArgumentT1('Ob'), ArgumentT1('Yl'), ArgumentT1('Zm'),
         # /NAME[parameter]
@@ -83,7 +86,7 @@ class CommandLineAnalyzer:
     argumentsWithParameterSorted = sorted(argumentsWithParameter, key=len, reverse=True)
 
     @staticmethod
-    def _getParameterizedArgumentType(cmdLineArgument):
+    def _getParameterizedArgumentType(cmdLineArgument: str) -> Optional[Argument]:
         # Sort by length to handle prefixes
         for arg in CommandLineAnalyzer.argumentsWithParameterSorted:
             if cmdLineArgument.startswith(arg.name, 1):
@@ -91,8 +94,8 @@ class CommandLineAnalyzer:
         return None
 
     @staticmethod
-    def parseArgumentsAndInputFiles(cmdline):
-        arguments = defaultdict(list)
+    def parseArgumentsAndInputFiles(cmdline: List[str]) -> Tuple[Dict[str, List[str]], List[str]]:
+        arguments: Dict[str, List[str]] = defaultdict(list)
         inputFiles = []
         i = 0
         while i < len(cmdline):
@@ -141,18 +144,18 @@ class CommandLineAnalyzer:
         options, inputFiles = CommandLineAnalyzer.parseArgumentsAndInputFiles(cmdline)
         # Use an override pattern to shadow input files that have
         # already been specified in the function above
-        inputFiles = {inputFile: '' for inputFile in inputFiles}
+        inputDict = {inputFile: '' for inputFile in inputFiles}
         compl = False
         if 'Tp' in options:
-            inputFiles.update({inputFile: '/Tp' for inputFile in options['Tp']})
+            inputDict.update({inputFile: '/Tp' for inputFile in options['Tp']})
             compl = True
         if 'Tc' in options:
-            inputFiles.update({inputFile: '/Tc' for inputFile in options['Tc']})
+            inputDict.update({inputFile: '/Tc' for inputFile in options['Tc']})
             compl = True
 
         # Now collect the inputFiles into the return format
-        inputFiles = list(inputFiles.items())
-        if not inputFiles:
+        inputList = list(inputDict.items())
+        if not inputDict:
             raise NoSourceFileError()
 
         for opt in ['E', 'EP', 'P']:
@@ -170,7 +173,7 @@ class CommandLineAnalyzer:
         if 'link' in options or 'c' not in options:
             raise CalledForLinkError()
 
-        if len(inputFiles) > 1 and compl:
+        if len(inputList) > 1 and compl:
             raise MultipleSourceFilesComplexError()
 
         objectFiles = None
@@ -180,19 +183,21 @@ class CommandLineAnalyzer:
             tmp = os.path.normpath(options['Fo'][0])
             if os.path.isdir(tmp):
                 prefix = tmp
-            elif len(inputFiles) == 1:
+            elif len(inputList) == 1:
                 objectFiles = [tmp]
         if objectFiles is None:
             # Generate from .c/.cpp filenames
-            objectFiles = [os.path.join(prefix, basenameWithoutExtension(f)) + '.obj' for f, _ in inputFiles]
+            objectFiles = [os.path.join(prefix, basenameWithoutExtension(f)) + '.obj' for f, _ in inputList]
 
-        printTraceStatement("Compiler source files: {}".format(inputFiles))
+        printTraceStatement("Compiler source files: {}".format(inputDict))
         printTraceStatement("Compiler object file: {}".format(objectFiles))
-        return inputFiles, objectFiles
+        return inputList, objectFiles
 
 
 class CommandLineTokenizer:
-    def __init__(self, content):
+    # TODO: needs more strict type
+    State_ = Callable[[str], Any]
+    def __init__(self, content: str):
         self.argv = []
         self._content = content
         self._pos = 0
@@ -206,7 +211,7 @@ class CommandLineTokenizer:
         if self._token:
             self.argv.append(self._token)
 
-    def _initialState(self, currentChar):
+    def _initialState(self, currentChar: str) -> Any:
         if currentChar.isspace():
             return self._initialState
 
@@ -220,7 +225,7 @@ class CommandLineTokenizer:
         self._token += currentChar
         return self._unquotedState
 
-    def _unquotedState(self, currentChar):
+    def _unquotedState(self, currentChar: str) -> Any:
         if currentChar.isspace():
             self.argv.append(self._token)
             self._token = ''
@@ -236,7 +241,7 @@ class CommandLineTokenizer:
         self._token += currentChar
         return self._unquotedState
 
-    def _quotedState(self, currentChar):
+    def _quotedState(self, currentChar: str) -> Any:
         if currentChar == '"':
             return self._unquotedState
 
@@ -247,7 +252,7 @@ class CommandLineTokenizer:
         self._token += currentChar
         return self._quotedState
 
-    def _parseBackslash(self):
+    def _parseBackslash(self) -> None:
         numBackslashes = 0
         while self._pos < len(self._content) and self._content[self._pos] == '\\':
             self._pos += 1
@@ -266,11 +271,11 @@ class CommandLineTokenizer:
 
 
 
-def splitCommandsFile(content):
+def splitCommandsFile(content: str) -> List[str]:
     return CommandLineTokenizer(content).argv
 
 
-def expandCommandLine(cmdline):
+def expandCommandLine(cmdline: List[str]) -> List[str]:
     ret = []
 
     for arg in cmdline:
@@ -306,7 +311,7 @@ def expandCommandLine(cmdline):
     return ret
 
 
-def extendCommandLineFromEnvironment(cmdLine, environment):
+def extendCommandLineFromEnvironment(cmdLine: List[str], environment: Dict[str, str]) -> Tuple[List[str], Dict[str, str]]:
     remainingEnvironment = environment.copy()
 
     prependCmdLineString = remainingEnvironment.pop('CL', None)
@@ -322,7 +327,7 @@ def extendCommandLineFromEnvironment(cmdLine, environment):
 
 # Returns the amount of jobs which should be run in parallel when
 # invoked in batch mode as determined by the /MP argument
-def jobCount(cmdLine):
+def jobCount(cmdLine: List[str]) -> int:
     mpSwitches = [arg for arg in cmdLine if re.match(r'^/MP(\d+)?$', arg)]
     if not mpSwitches:
         return 1
