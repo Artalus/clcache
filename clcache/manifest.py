@@ -147,7 +147,7 @@ class ManifestRepository:
         return remainingObjectsSize
 
     @staticmethod
-    def getManifestHash(compilerBinary: str, commandLine: Sequence[str], sourceFile: str) -> str:
+    def getManifestHash(compilerBinary: str, commandLine: List[str], sourceFile: str) -> str:
         compilerHash = getCompilerHash(compilerBinary)
 
         # NOTE: We intentionally do not normalize command line to include
@@ -175,7 +175,7 @@ class ManifestRepository:
         return getFileHash(sourceFile, additionalData)
 
     @staticmethod
-    def getIncludesContentHashForFiles(includes: Sequence[str]) -> str:
+    def getIncludesContentHashForFiles(includes: List[str]) -> str:
         try:
             listOfHashes = getFileHashes(includes)
         except FileNotFoundError:
