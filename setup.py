@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import os
+import sys
+if sys.version_info < (3,5):
+    sys.exit('Python < 3.5 is not supported')
 
 from setuptools import setup, find_packages
 
@@ -14,8 +16,6 @@ setup(
     platforms='any',
     keywords=[],
     install_requires=[
-        'typing; python_version < "3.5"',
-        'subprocess.run; python_version < "3.5"',
         'atomicwrites',
         'pymemcache',
         'pyuv',

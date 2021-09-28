@@ -3,8 +3,6 @@ import os
 import unittest
 import tempfile
 
-from clcache import WALK
-from clcache import clcache
 from clcache.manifest import (
     Manifest,
     ManifestEntry,
@@ -118,7 +116,7 @@ class TestManifestRepository(unittest.TestCase):
             return os.stat(os.path.join(path, filename)).st_size
 
         size = 0
-        for path, _, filenames in WALK(dirPath):
+        for path, _, filenames in os.walk(dirPath):
             size += sum(filesize(path, f) for f in filenames)
 
         return size

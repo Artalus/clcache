@@ -12,7 +12,6 @@ from typing import (
 
 from atomicwrites import atomic_write
 
-from . import WALK
 from .cmdline import CommandLineAnalyzer
 from .compiler import CompilerArtifactsRepository
 from .errors import IncludeNotFoundException
@@ -203,7 +202,7 @@ def createManifestEntry(manifestHash: str, includePaths: Iterable[str]) -> Manif
 
 
 def filesBeneath(baseDir: str) -> Generator[str, None, None]:
-    for path, _, filenames in WALK(baseDir):
+    for path, _, filenames in os.walk(baseDir):
         for filename in filenames:
             yield os.path.join(path, filename)
 

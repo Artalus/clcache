@@ -5,8 +5,6 @@ import gzip
 from shutil import copyfile, copyfileobj
 from typing import Generator, Optional
 
-from clcache import LIST
-
 
 def ensureDirectoryExists(path: str) -> None:
     try:
@@ -18,15 +16,9 @@ def ensureDirectoryExists(path: str) -> None:
 
 
 def childDirectories(path: str, absolute: bool=True) -> Generator[str, None, None]:
-    supportsScandir = (LIST != os.listdir) # pylint: disable=comparison-with-callable
-    for entry in LIST(path):
-        if supportsScandir:
-            if entry.is_dir():
-                yield entry.path if absolute else entry.name
-        else:
-            absPath = os.path.join(path, entry)
-            if os.path.isdir(absPath):
-                yield absPath if absolute else entry
+    for entry in os.scandir(path):
+        if entry.is_dir():
+            yield entry.path if absolute else entry.name
 
 
 def normalizeBaseDir(baseDir: Optional[str]) -> Optional[str]:
