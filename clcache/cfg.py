@@ -1,11 +1,11 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional, cast
 
 from .stats import PersistentJSONDict
 
 
 class Configuration:
     _defaultValues: Dict[str, Any] = {"MaximumCacheSize": 1073741824} # 1 GiB
-
+    _cfg: Optional[PersistentJSONDict]
     def __init__(self, configurationFile: str):
         self._configurationFile = configurationFile
         self._cfg = None
@@ -25,7 +25,7 @@ class Configuration:
 
     def maximumCacheSize(self) -> int:
         assert self._cfg
-        return self._cfg["MaximumCacheSize"]
+        return cast(int, self._cfg["MaximumCacheSize"])
 
     def setMaximumCacheSize(self, size: int) -> None:
         assert self._cfg
