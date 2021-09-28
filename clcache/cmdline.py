@@ -15,6 +15,7 @@ from .errors import (
     MultipleSourceFilesComplexError,
 )
 from .print import printTraceStatement
+from .types import EnvMap
 
 
 def basenameWithoutExtension(path: str) -> str:
@@ -310,7 +311,7 @@ def expandCommandLine(cmdline: List[str]) -> List[str]:
     return ret
 
 
-def extendCommandLineFromEnvironment(cmdLine: List[str], environment: Dict[str, str]) -> Tuple[List[str], Dict[str, str]]:
+def extendCommandLineFromEnvironment(cmdLine: List[str], environment: EnvMap) -> Tuple[List[str], EnvMap]:
     remainingEnvironment = environment.copy()
 
     prependCmdLineString = remainingEnvironment.pop('CL', None)

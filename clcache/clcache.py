@@ -11,7 +11,7 @@ import contextlib
 import os
 import re
 import sys
-from typing import ContextManager, List, Tuple, Iterator, Dict, Optional, Generator, TypeVar, Union, Set, Callable
+from typing import ContextManager, List, Tuple, Iterator, Optional, Generator, TypeVar, Union, Set, Callable
 
 from .errors import *
 from .print import *
@@ -23,6 +23,7 @@ from .utils import *
 from .hash import *
 from .manifest import *
 from .compiler import *
+from .types import EnvMap
 
 AnyRepo = TypeVar('AnyRepo', CompilerArtifactsRepository, ManifestRepository)
 AnySection = TypeVar('AnySection', CompilerArtifactsSection, ManifestSection)
@@ -380,7 +381,7 @@ def filterSourceFiles(cmdLine: List[str], sourceFiles: List[Tuple[str, str]]) ->
         if not (arg in setOfSources or arg.startswith(skippedArgs))
     )
 
-def scheduleJobs(cache: Cache, compiler: str, cmdLine: List[str], environment: Dict[str, str],
+def scheduleJobs(cache: Cache, compiler: str, cmdLine: List[str], environment: EnvMap,
                  sourceFiles: List[Tuple[str, str]], objectFiles: List[str]) -> int:
     # Filter out all source files from the command line to form baseCmdLine
     baseCmdLine = [arg for arg in filterSourceFiles(cmdLine, sourceFiles) if not arg.startswith('/MP')]
@@ -420,7 +421,7 @@ def scheduleJobs(cache: Cache, compiler: str, cmdLine: List[str], environment: D
 
     return exitCode
 
-def processSingleSource(compiler: str, cmdLine: List[str], sourceFile: str, objectFile: str, environment: Dict[str, str]) -> CompilerTuple:
+def processSingleSource(compiler: str, cmdLine: List[str], sourceFile: str, objectFile: str, environment: EnvMap) -> CompilerTuple:
     try:
         assert objectFile is not None
         cache = Cache()
@@ -501,7 +502,7 @@ def processDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[st
                                     objectFile, compilerResult, addManifest)
 
 
-def processNoDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[str], environment: Dict[str, str]) -> CompilerTuple:
+def processNoDirect(cache: Cache, objectFile: str, compiler: str, cmdLine: List[str], environment: EnvMap) -> CompilerTuple:
     cachekey = CompilerArtifactsRepository.computeKeyNodirect(compiler, cmdLine, environment)
     with cache.lockFor(cachekey):
         if cache.hasEntry(cachekey):

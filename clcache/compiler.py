@@ -7,7 +7,7 @@ from shutil import (
 import subprocess
 import sys
 from tempfile import TemporaryFile
-from typing import Dict, Generator, List, Optional, Tuple, Union
+from typing import Generator, List, Optional, Tuple, Union
 
 from .errors import CompilerFailedException
 from .hash import (
@@ -22,6 +22,7 @@ from .utils import (
     ensureDirectoryExists,
     copyOrLink,
 )
+from .types import EnvMap
 
 
 # The codec that is used by clcache to store compiler STDOUR and STDERR in
@@ -135,7 +136,7 @@ class CompilerArtifactsRepository:
         return getStringHash(manifestHash + includesContentHash)
 
     @staticmethod
-    def computeKeyNodirect(compilerBinary: str, commandLine: List[str], environment: Dict[str, str]) -> str:
+    def computeKeyNodirect(compilerBinary: str, commandLine: List[str], environment: EnvMap) -> str:
         ppcmd = ["/EP"] + [arg for arg in commandLine if arg not in ("-c", "/c")]
 
         returnCode, preprocessedSourceCode, ppStderrBinary = \
@@ -181,7 +182,7 @@ class CompilerArtifactsRepository:
 # TODO: should use more distinct type overloads
 def invokeRealCompiler(compilerBinary: str, cmdLine: List[str],
         captureOutput: bool=False, outputAsString: bool=True,
-        environment: Optional[Dict[str, str]]=None) \
+        environment: Optional[EnvMap]=None) \
         -> Tuple[int, Union[str, bytes], Union[str, bytes]]:
     realCmdline = [compilerBinary] + cmdLine
     printTraceStatement("Invoking real compiler as {}".format(realCmdline))
